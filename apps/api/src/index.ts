@@ -3,16 +3,25 @@ import { cors } from 'hono/cors'
 import { ApiSportsFootballProvider } from './providers/ApiSportsProvider'
 import { FootballProvider } from './providers/football'
 import { calculatePoints, PhaseType } from './scoring'
+import { createToken, verifyToken, hashPassword, verifyPassword, JwtUser } from './auth'
 
 type Bindings = {
   DB: D1Database
   JWT_SECRET: string
   FOOTBALL_API_KEY: string
+  FRONTEND_URL?: string
   WORLD_CUP_LEAGUE_ID?: string
   WORLD_CUP_SEASON?: string
 }
 
-const app = new Hono<{ Bindings: Bindings }>()
+type Variables = {
+  user: JwtUser
+}
+
+const ENTRY_FEE = 50000 // COP por participante
+const PRIZE_RATE = 0.95
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 app.use('*', cors({
   origin: '*', // Restrict to frontend URL in prod
@@ -20,7 +29,30 @@ app.use('*', cors({
   allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
 }))
 
-// --- Helpers ---
+// --- Auth middleware ---
+
+const requireAuth = async (c: any, next: any) => {
+  const header = c.req.header('Authorization')
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : null
+  if (!token) return c.json({ error: 'No autorizado' }, 401)
+  const user = await verifyToken(token, c.env.JWT_SECRET)
+  if (!user) return c.json({ error: 'Token inválido o expirado' }, 401)
+  c.set('user', user)
+  await next()
+}
+
+const requireAdmin = async (c: any, next: any) => {
+  const user = c.get('user') as JwtUser | undefined
+  if (!user || user.role !== 'ADMIN') return c.json({ error: 'Solo administradores' }, 403)
+  await next()
+}
+
+app.use('/api/me', requireAuth)
+app.use('/api/matches', requireAuth)
+app.use('/api/predictions', requireAuth)
+app.use('/api/admin/*', requireAuth, requireAdmin)
+
+// --- Football provider helpers ---
 
 function makeProvider(env: Bindings): FootballProvider {
   const leagueId = env.WORLD_CUP_LEAGUE_ID ? parseInt(env.WORLD_CUP_LEAGUE_ID, 10) : 1
@@ -68,8 +100,8 @@ async function syncTournamentData(env: Bindings) {
     ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore).run()
   }
 
-  const ranked = await recalculateScores(env)
-  return { teams: teams.length, matches: matches.length, rankedUsers: ranked }
+  const rankedUsers = await recalculateScores(env)
+  return { teams: teams.length, matches: matches.length, rankedUsers }
 }
 
 // Recomputes prediction points for every finished match and rebuilds the rankings table.
@@ -127,14 +159,181 @@ async function recalculateScores(env: Bindings): Promise<number> {
   return stats.size
 }
 
-// --- Routes ---
+// ============================ Routes ============================
 
-app.get('/', (c) => {
-  return c.json({ message: 'Polla Mundialista API is running!' })
+app.get('/', (c) => c.json({ message: 'Polla Mundialista API is running!' }))
+
+// --- Auth ---
+
+app.post('/api/auth/login', async (c) => {
+  const { phone, password } = await c.req.json<{ phone: string; password: string }>()
+  if (!phone || !password) return c.json({ error: 'Teléfono y contraseña requeridos' }, 400)
+
+  const user = await c.env.DB.prepare('SELECT id, name, role, password_hash FROM users WHERE phone = ?')
+    .bind(phone).first<{ id: string; name: string; role: string; password_hash: string }>()
+  if (!user) return c.json({ error: 'Credenciales inválidas' }, 401)
+
+  const ok = await verifyPassword(password, user.password_hash)
+  if (!ok) return c.json({ error: 'Credenciales inválidas' }, 401)
+
+  const token = await createToken({ id: user.id, role: user.role, name: user.name }, c.env.JWT_SECRET)
+  return c.json({ token, user: { id: user.id, name: user.name, role: user.role } })
+})
+
+app.post('/api/auth/register', async (c) => {
+  const { token: inviteToken, name, phone, password } =
+    await c.req.json<{ token: string; name: string; phone: string; password: string }>()
+  if (!inviteToken || !name || !phone || !password) {
+    return c.json({ error: 'Todos los campos son requeridos' }, 400)
+  }
+
+  const inv = await c.env.DB.prepare('SELECT id, expires_at FROM invitations WHERE token = ? AND used = 0')
+    .bind(inviteToken).first<{ id: string; expires_at: string | null }>()
+  if (!inv) return c.json({ error: 'Invitación inválida o ya utilizada' }, 400)
+  if (inv.expires_at && new Date(inv.expires_at).getTime() < Date.now()) {
+    return c.json({ error: 'La invitación expiró' }, 400)
+  }
+
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE phone = ?').bind(phone).first()
+  if (existing) return c.json({ error: 'El teléfono ya está registrado' }, 400)
+
+  const id = crypto.randomUUID()
+  const hash = await hashPassword(password)
+  await c.env.DB.prepare('INSERT INTO users (id, name, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, name, phone, hash, 'USER').run()
+  await c.env.DB.prepare('UPDATE invitations SET used = 1 WHERE id = ?').bind(inv.id).run()
+  await c.env.DB.prepare(
+    'INSERT OR IGNORE INTO rankings (id, user_id, total_points, exact_scores, correct_winners, position) VALUES (?, ?, 0, 0, 0, 0)'
+  ).bind(`rank_${id}`, id).run()
+
+  const token = await createToken({ id, role: 'USER', name }, c.env.JWT_SECRET)
+  return c.json({ token, user: { id, name, role: 'USER' } })
+})
+
+// --- Public ranking ---
+
+app.get('/api/ranking', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT r.position, u.name,
+            r.total_points AS points,
+            r.exact_scores AS exactScores,
+            r.correct_winners AS correctWinners
+     FROM rankings r
+     JOIN users u ON u.id = r.user_id
+     WHERE u.role = 'USER'
+     ORDER BY r.total_points DESC, r.exact_scores DESC`
+  ).all()
+  // Re-number positions for display (handles ties / unsynced positions).
+  const ranked = results.map((row: any, idx: number) => ({ ...row, position: idx + 1 }))
+  return c.json(ranked)
+})
+
+// --- Authenticated user ---
+
+app.get('/api/me', async (c) => {
+  const user = c.get('user')
+  const rank = await c.env.DB.prepare('SELECT total_points, position FROM rankings WHERE user_id = ?')
+    .bind(user.id).first<{ total_points: number; position: number }>()
+  return c.json({
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    points: rank?.total_points ?? 0,
+    position: rank?.position ?? 0
+  })
+})
+
+app.get('/api/matches', async (c) => {
+  const user = c.get('user')
+  const { results } = await c.env.DB.prepare(
+    `SELECT m.id, m.match_date AS matchDate, m.status,
+            m.home_score AS homeScore, m.away_score AS awayScore,
+            ph.name AS phaseName,
+            ht.name AS homeName, ht.flag_url AS homeFlag,
+            at.name AS awayName, at.flag_url AS awayFlag,
+            p.predicted_home AS predictedHome,
+            p.predicted_away AS predictedAway,
+            p.points AS predictionPoints
+     FROM matches m
+     JOIN teams ht ON ht.id = m.home_team_id
+     JOIN teams at ON at.id = m.away_team_id
+     JOIN phases ph ON ph.id = m.phase_id
+     LEFT JOIN predictions p ON p.match_id = m.id AND p.user_id = ?
+     ORDER BY m.match_date ASC`
+  ).bind(user.id).all()
+  return c.json(results)
+})
+
+app.post('/api/predictions', async (c) => {
+  const user = c.get('user')
+  const { matchId, home, away } = await c.req.json<{ matchId: string; home: number; away: number }>()
+
+  if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
+    return c.json({ error: 'Marcador inválido' }, 400)
+  }
+
+  const match = await c.env.DB.prepare('SELECT status FROM matches WHERE id = ?')
+    .bind(matchId).first<{ status: string }>()
+  if (!match) return c.json({ error: 'Partido no encontrado' }, 404)
+  if (match.status !== 'SCHEDULED') return c.json({ error: 'El partido ya está bloqueado' }, 400)
+
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(
+    `INSERT INTO predictions (id, user_id, match_id, predicted_home, predicted_away)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, match_id) DO UPDATE SET
+       predicted_home = excluded.predicted_home,
+       predicted_away = excluded.predicted_away`
+  ).bind(id, user.id, matchId, home, away).run()
+
+  return c.json({ success: true })
+})
+
+// --- Admin ---
+
+app.get('/api/admin/stats', async (c) => {
+  const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
+    .first<{ n: number }>()
+  const participants = row?.n ?? 0
+  const totalCollected = participants * ENTRY_FEE
+  const prizePool = Math.round(totalCollected * PRIZE_RATE)
+  return c.json({ participants, totalCollected, prizePool })
+})
+
+app.get('/api/admin/phases', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, name, status FROM phases ORDER BY rowid').all()
+  return c.json(results)
+})
+
+app.put('/api/admin/phases/:id', async (c) => {
+  const id = c.req.param('id')
+  const { status } = await c.req.json<{ status: string }>()
+  if (!['PENDING', 'OPEN', 'CLOSED'].includes(status)) {
+    return c.json({ error: 'Estado inválido' }, 400)
+  }
+  await c.env.DB.prepare('UPDATE phases SET status = ? WHERE id = ?').bind(status, id).run()
+  return c.json({ success: true })
+})
+
+app.post('/api/admin/invitations', async (c) => {
+  const id = crypto.randomUUID()
+  const token = crypto.randomUUID().replace(/-/g, '')
+  await c.env.DB.prepare('INSERT INTO invitations (id, token, used) VALUES (?, ?, 0)')
+    .bind(id, token).run()
+  const base = c.env.FRONTEND_URL || ''
+  return c.json({ token, url: `${base}/login?invite=${token}` })
+})
+
+app.post('/api/admin/sync', async (c) => {
+  try {
+    const result = await syncTournamentData(c.env)
+    return c.json({ success: true, ...result })
+  } catch (error) {
+    return c.json({ success: false, error: (error as Error).message }, 500)
+  }
 })
 
 // Verifies the football API connection WITHOUT touching the database.
-// Use this first to confirm the API key works.
 app.get('/api/football/status', async (c) => {
   try {
     const provider = makeProvider(c.env)
@@ -152,26 +351,6 @@ app.get('/api/football/status', async (c) => {
     })
   } catch (error) {
     return c.json({ success: false, error: (error as Error).message }, 502)
-  }
-})
-
-// Triggers a full sync into D1 + score recalculation. Protect with admin auth in prod.
-app.post('/api/admin/sync', async (c) => {
-  try {
-    const result = await syncTournamentData(c.env)
-    return c.json({ success: true, ...result })
-  } catch (error) {
-    return c.json({ success: false, error: (error as Error).message }, 500)
-  }
-})
-
-// --- Test Database ---
-app.get('/test-db', async (c) => {
-  try {
-    const { results } = await c.env.DB.prepare('SELECT * FROM phases').all()
-    return c.json({ success: true, data: results })
-  } catch (error) {
-    return c.json({ success: false, error: (error as Error).message }, 500)
   }
 })
 
