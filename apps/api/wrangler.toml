@@ -1,0 +1,26 @@
+name = "polla-mundialista-api"
+main = "src/index.ts"
+compatibility_date = "2024-03-20"
+
+# Cron trigger for every 30 minutes
+[triggers]
+crons = ["*/30 * * * *"]
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "polla-db"
+database_id = "00000000-0000-0000-0000-000000000000" # Replace with real ID
+migrations_dir = "migrations"
+
+# Non-secret config (safe to commit)
+[vars]
+FRONTEND_URL = "http://localhost:3000"
+WORLD_CUP_LEAGUE_ID = "1"
+WORLD_CUP_SEASON = "2026"
+
+# SECRETS are NOT defined here (this file is committed to git).
+#   - Local dev:   put them in apps/api/.dev.vars  (gitignored)
+#   - Production:  wrangler secret put FOOTBALL_API_KEY
+#                  wrangler secret put JWT_SECRET
+# Required secrets: FOOTBALL_API_KEY, JWT_SECRET

@@ -1,0 +1,8 @@
+{
+  "name": "polla-mundialista-2026",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ]
+}
