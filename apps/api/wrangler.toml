@@ -17,7 +17,7 @@ migrations_dir = "migrations"
 [vars]
 FRONTEND_URL = "http://localhost:3000"
 WORLD_CUP_LEAGUE_ID = "1"
-WORLD_CUP_SEASON = "2026"
+WORLD_CUP_SEASON = "2022"
 
 # SECRETS are NOT defined here (this file is committed to git).
 #   - Local dev:   put them in apps/api/.dev.vars  (gitignored)
