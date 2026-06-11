@@ -10,7 +10,7 @@ crons = ["*/30 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "polla-db"
-database_id = "e0cf21f9-fdd2-49e3-a865-9d42ea09f78b"
+database_id = "3336cd9a-ed98-475d-b55c-fbbe1d58a64e"
 migrations_dir = "migrations"
 
 # Non-secret config (safe to commit)
