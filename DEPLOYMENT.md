@@ -1,77 +1,76 @@
 # Despliegue — Polla Mundialista 2026
 
-Cada `git push` a la rama `main` despliega automáticamente:
-- **`apps/api`** → Cloudflare **Workers**
+Cada `git push` a `main` despliega automáticamente vía la **integración Git nativa de Cloudflare**:
+- **`apps/api`** → Cloudflare **Workers** (Workers Builds)
 - **`apps/web`** → Cloudflare **Pages**
 
-Esto lo ejecuta el workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
+No se usa GitHub Actions: Cloudflare escucha los push del repo directamente (webhook OAuth).
 
 ---
 
-## Configuración por única vez
+## Configuración en Cloudflare (una sola vez)
 
-Necesitas hacer esto **una sola vez** antes del primer push. Requiere [Node.js](https://nodejs.org) instalado.
+### Worker (API) — Workers Builds
 
-### 1. Cuenta y CLI de Cloudflare
-```bash
-npm install                      # instala dependencias (incluye wrangler)
-cd apps/api
-npx wrangler login               # abre el navegador para autenticarte
-```
+Workers & Pages → Create → Workers → Connect to Git → repo `polla-mundial`:
 
-### 2. Crear la base de datos D1
-```bash
-npx wrangler d1 create polla-db
-```
-Copia el `database_id` que imprime y pégalo en [apps/api/wrangler.toml](apps/api/wrangler.toml),
-reemplazando los ceros:
-```toml
-database_id = "AQUI-VA-EL-ID-REAL"
-```
+| Campo | Valor |
+|---|---|
+| Root directory | `apps/api` |
+| Build command | *(vacío)* |
+| Deploy command | `npx wrangler deploy` |
 
-### 3. Cargar el esquema y datos iniciales
-```bash
-# Local (para probar con `npm run dev`):
-npx wrangler d1 migrations apply polla-db --local
+**Secretos del Worker** (Settings → Variables and Secrets, tipo *Secret*):
 
-# Remoto (la base de datos real en Cloudflare):
-npx wrangler d1 migrations apply polla-db --remote
-```
-
-### 4. Cargar los secretos en producción
-```bash
-npx wrangler secret put FOOTBALL_API_KEY
-# pega tu API key de api-sports.io (la misma que está en apps/api/.dev.vars)
-
-npx wrangler secret put JWT_SECRET
-# pega una cadena larga y aleatoria
-```
-
-### 5. Conseguir el token de API de Cloudflare (para GitHub Actions)
-En el [dashboard de Cloudflare](https://dash.cloudflare.com/profile/api-tokens) → **Create Token**
-→ usa la plantilla *Edit Cloudflare Workers* y añade permisos:
-- `Account · Workers Scripts · Edit`
-- `Account · D1 · Edit`
-- `Account · Cloudflare Pages · Edit`
-
-Copia el token. También necesitas tu **Account ID** (visible en la barra lateral del dashboard).
-
-### 6. Cargar los secretos en GitHub
-En tu repo de GitHub → **Settings → Secrets and variables → Actions**:
-
-**Secrets** (pestaña *Secrets*):
 | Nombre | Valor |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | el token del paso 5 |
-| `CLOUDFLARE_ACCOUNT_ID` | tu Account ID |
+| `FOOTBALL_API_KEY` | API key de api-sports.io (si usas ese proveedor) |
+| `FOOTBALL_DATA_API_KEY` | API key de football-data.org (si usas ese proveedor) |
+| `JWT_SECRET` | cadena larga aleatoria |
 
-**Variables** (pestaña *Variables*, opcional pero recomendado):
+### Pages (Web)
+
+Workers & Pages → Create → Pages → Connect to Git → repo `polla-mundial`:
+
+| Campo | Valor |
+|---|---|
+| Production branch | `main` |
+| Framework preset | **None** (⚠️ no elegir "Next.js" — la app es export estático) |
+| Root directory | `apps/web` |
+| Build command | `npm run build` |
+| Build output directory | `out` |
+
+**Variables de entorno de Pages** (Settings → Environment variables):
+
 | Nombre | Valor |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | URL del Worker, ej. `https://polla-mundialista-api.TU-SUBDOMINIO.workers.dev` |
+| `NEXT_PUBLIC_API_URL` | URL del Worker, ej. `https://polla-mundial.TU-SUBDOMINIO.workers.dev` |
 
-> La URL del Worker la sabrás después del primer deploy del API. Puedes dejar la variable
-> vacía la primera vez y configurarla luego para que la web apunte al API real.
+La versión de Node la fija el archivo `.nvmrc` (20).
+
+### Base de datos D1
+
+1. Storage & Databases → D1 → Create → nombre `polla-db`.
+2. Copiar el **Database ID** a `apps/api/wrangler.toml` (`database_id`).
+3. En la pestaña **Console** de la D1, ejecutar el contenido de:
+   - `apps/api/migrations/0001_schema.sql` (tablas)
+   - `apps/api/migrations/0002_seed.sql` (fases + admin inicial)
+
+Admin inicial: teléfono `0000000000`, contraseña `admin123` (cámbiala en producción).
+
+---
+
+## Proveedores de datos de fútbol
+
+La API soporta dos proveedores, seleccionables con la variable `FOOTBALL_PROVIDER`
+en `apps/api/wrangler.toml` (o en el dashboard del Worker):
+
+| Valor | Proveedor | Secreto requerido | Notas |
+|---|---|---|---|
+| `apisports` (default) | api-sports.io | `FOOTBALL_API_KEY` | Plan free: solo temporadas 2022–2024 |
+| `footballdata` | football-data.org | `FOOTBALL_DATA_API_KEY` | Plan free incluye el Mundial; ~10 req/min |
+
+La temporada se controla con `WORLD_CUP_SEASON` (ej. `2022` para pruebas, `2026` para el torneo real).
 
 ---
 
@@ -83,38 +82,56 @@ git commit -m "mi cambio"
 git push
 ```
 
-GitHub Actions se encarga del resto. Puedes ver el progreso en la pestaña **Actions** de tu repo.
+Cloudflare hace el resto. El progreso se ve en cada proyecto → pestaña **Deployments**.
+
+> Nota: el botón **Retry** de un deployment fallido reusa el MISMO commit de ese build.
+> Para desplegar el código más reciente, haz push de un commit nuevo o usa "Create deployment".
 
 ---
 
 ## Desarrollo local
 
+Requiere Node 20+ (ver `.nvmrc`).
+
 ```bash
+npm install                # en la raíz (workspaces)
+
 # API (Worker + D1 local)
 cd apps/api
-npm run db:migrate     # solo la primera vez / al cambiar el esquema
-npm run dev            # http://localhost:8787
-
-# Verificar conexión con la API de fútbol (sin base de datos):
-#   http://localhost:8787/api/football/status
+cp .dev.vars.example .dev.vars   # y rellena las keys
+npm run db:migrate               # primera vez / al cambiar esquema
+npm run dev                      # http://localhost:8787
 
 # Web (en otra terminal)
 cd apps/web
-npm run dev            # http://localhost:3000
+npm run dev                      # http://localhost:3000
+```
+
+Verificación de build en limpio (lo que correrá Cloudflare):
+
+```bash
+npm install && npm run build --workspace=web   # genera apps/web/out/
+cd apps/api && npx tsc --noEmit                # typecheck del Worker
+npx tsx src/scoring.test.ts                    # tests de puntuación
 ```
 
 ---
 
 ## Endpoints del API
 
-| Método | Ruta | Descripción |
+| Método | Ruta | Acceso |
 |---|---|---|
-| GET | `/` | Health check |
-| GET | `/api/football/status` | Verifica la API de fútbol (no usa BD) |
-| POST | `/api/admin/sync` | Sincroniza equipos/partidos a D1 y recalcula puntos |
-| GET | `/test-db` | Lista las fases (prueba de BD) |
+| GET | `/` | público (health check) |
+| POST | `/api/auth/login` | público |
+| POST | `/api/auth/register` | público (token de invitación) |
+| GET | `/api/ranking` | público |
+| GET | `/api/me` | usuario autenticado |
+| GET | `/api/matches` | usuario autenticado |
+| POST | `/api/predictions` | usuario autenticado |
+| GET | `/api/admin/stats` | admin |
+| GET | `/api/admin/phases` · PUT `/api/admin/phases/:id` | admin |
+| POST | `/api/admin/invitations` | admin |
+| POST | `/api/admin/sync` | admin |
+| GET | `/api/football/status` | público (diagnóstico del proveedor, no toca BD) |
 
 El **cron cada 30 min** ejecuta el mismo sync automáticamente.
-
-> ⚠️ `POST /api/admin/sync` aún no tiene autenticación. Protégelo con verificación de
-> rol ADMIN (JWT) antes de exponerlo públicamente.

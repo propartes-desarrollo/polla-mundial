@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { ApiSportsFootballProvider } from './providers/ApiSportsProvider'
+import { FootballDataProvider } from './providers/FootballDataProvider'
 import { FootballProvider } from './providers/football'
 import { calculatePoints, PhaseType } from './scoring'
 import { createToken, verifyToken, hashPassword, verifyPassword, JwtUser } from './auth'
@@ -9,6 +10,8 @@ type Bindings = {
   DB: D1Database
   JWT_SECRET: string
   FOOTBALL_API_KEY: string
+  FOOTBALL_DATA_API_KEY?: string
+  FOOTBALL_PROVIDER?: string // 'apisports' (default) | 'footballdata'
   FRONTEND_URL?: string
   WORLD_CUP_LEAGUE_ID?: string
   WORLD_CUP_SEASON?: string
@@ -55,18 +58,28 @@ app.use('/api/admin/*', requireAuth, requireAdmin)
 // --- Football provider helpers ---
 
 function makeProvider(env: Bindings): FootballProvider {
-  const leagueId = env.WORLD_CUP_LEAGUE_ID ? parseInt(env.WORLD_CUP_LEAGUE_ID, 10) : 1
   const season = env.WORLD_CUP_SEASON ? parseInt(env.WORLD_CUP_SEASON, 10) : 2026
+
+  if (env.FOOTBALL_PROVIDER === 'footballdata') {
+    if (!env.FOOTBALL_DATA_API_KEY) {
+      throw new Error('FOOTBALL_PROVIDER=footballdata pero falta el secreto FOOTBALL_DATA_API_KEY')
+    }
+    return new FootballDataProvider(env.FOOTBALL_DATA_API_KEY, season)
+  }
+
+  const leagueId = env.WORLD_CUP_LEAGUE_ID ? parseInt(env.WORLD_CUP_LEAGUE_ID, 10) : 1
   return new ApiSportsFootballProvider(env.FOOTBALL_API_KEY, leagueId, season)
 }
 
-// Maps an API-Sports `league.round` string to one of our phase ids.
+// Maps a provider round/stage string to one of our phase ids. Handles both
+// api-sports rounds ("Round of 16", "3rd Place Final") and football-data
+// stages ("LAST_16", "THIRD_PLACE", "FINAL").
 // Order matters: "Semi-finals" and "3rd Place Final" both contain "final".
 function mapRoundToPhaseId(round: string): PhaseType {
-  const r = round.toLowerCase()
+  const r = round.toLowerCase().replace(/_/g, ' ')
   if (r.includes('group')) return 'phase_groups'
-  if (r.includes('round of 32') || r.includes('1/16')) return 'phase_16'
-  if (r.includes('round of 16') || r.includes('1/8')) return 'phase_8'
+  if (r.includes('round of 32') || r.includes('last 32') || r.includes('1/16')) return 'phase_16'
+  if (r.includes('round of 16') || r.includes('last 16') || r.includes('1/8')) return 'phase_8'
   if (r.includes('quarter')) return 'phase_4'
   if (r.includes('semi')) return 'phase_semi'
   if (r.includes('3rd place') || r.includes('third place')) return 'phase_3rd'

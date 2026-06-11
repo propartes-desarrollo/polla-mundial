@@ -17,6 +17,9 @@ apps/api/.wrangler/
 .dev.vars
 .vercel/
 
+# Claude Code local settings (records session permissions; may contain secrets)
+.claude/settings.json
+
 # Misc
 .DS_Store
 *.pem

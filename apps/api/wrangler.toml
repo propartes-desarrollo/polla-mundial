@@ -16,11 +16,15 @@ migrations_dir = "migrations"
 # Non-secret config (safe to commit)
 [vars]
 FRONTEND_URL = "http://localhost:3000"
+# Proveedor de datos: "apisports" (api-sports.io) o "footballdata" (football-data.org)
+FOOTBALL_PROVIDER = "apisports"
 WORLD_CUP_LEAGUE_ID = "1"
 WORLD_CUP_SEASON = "2022"
 
 # SECRETS are NOT defined here (this file is committed to git).
 #   - Local dev:   put them in apps/api/.dev.vars  (gitignored)
-#   - Production:  wrangler secret put FOOTBALL_API_KEY
-#                  wrangler secret put JWT_SECRET
-# Required secrets: FOOTBALL_API_KEY, JWT_SECRET
+#   - Production:  wrangler secret put <NAME>  (o dashboard > Settings > Variables and Secrets)
+# Required secrets:
+#   FOOTBALL_API_KEY       (api-sports.io  — si FOOTBALL_PROVIDER=apisports)
+#   FOOTBALL_DATA_API_KEY  (football-data.org — si FOOTBALL_PROVIDER=footballdata)
+#   JWT_SECRET

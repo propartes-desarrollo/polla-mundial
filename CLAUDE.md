@@ -4,85 +4,76 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Polla Mundialista FIFA 2026** — a private sports prediction platform for the 2026 FIFA World Cup. Users register via invitation tokens, submit match predictions, and compete for prize pool money. Hosted entirely on Cloudflare's edge platform.
+**Polla Mundialista FIFA 2026** — a private sports prediction platform for the 2026 FIFA World Cup. Users register via invitation tokens, submit match predictions, and compete for prize pool money. Hosted entirely on Cloudflare.
 
 ## Monorepo Structure
 
 ```
 apps/
-  api/   — Cloudflare Workers backend (Hono + D1)
-  web/   — Next.js 15 frontend (App Router + shadcn/ui)
+  api/   — Cloudflare Workers backend (Hono + D1), worker name "polla-mundial"
+  web/   — Next.js 15 frontend, static export (output: 'export') for Cloudflare Pages
 ```
 
-All commands must be run from within the relevant `apps/api` or `apps/web` directory unless noted.
+npm workspaces: run `npm install` at the repo root. Node 20 (`.nvmrc`).
 
 ## Commands
 
 ### API (`apps/api`)
 ```bash
-npm run dev        # Wrangler local dev server (emulates D1)
-npm run deploy     # Deploy to Cloudflare Workers
-npm run db:init    # Apply schema.sql to local D1
-npm run db:seed    # Seed test data via seed.sql
+npm run dev                # Wrangler local dev server (emulates D1), port 8787
+npm run typecheck          # tsc --noEmit
+npm run db:migrate         # apply migrations to local D1
+npm run db:migrate:remote  # apply migrations to production D1
+npx tsx src/scoring.test.ts  # scoring unit tests (custom harness, no runner)
 ```
-
-Tests are in `src/scoring.test.ts` and use a custom harness (no test runner dependency). Run with:
-```bash
-npx tsx src/scoring.test.ts
-```
+Local secrets go in `apps/api/.dev.vars` (gitignored; see `.dev.vars.example`).
 
 ### Web (`apps/web`)
 ```bash
-npm run dev    # Next.js dev server on port 3000
-npm run build  # Production build
-npm run lint   # ESLint
+npm run dev    # Next.js dev server, port 3000
+npm run build  # static export -> out/ (this is what Pages runs)
+npm run lint
 ```
+
+## Deployment
+
+Cloudflare native Git integration (NO GitHub Actions): every push to `main` triggers
+Workers Builds (root `apps/api`, deploy `npx wrangler deploy`) and Pages (root `apps/web`,
+build `npm run build`, output `out`, framework preset **None**). See DEPLOYMENT.md.
+
+Web needs env var `NEXT_PUBLIC_API_URL` (Pages dashboard) pointing at the Worker URL.
 
 ## Architecture
 
 ### Backend (Cloudflare Workers)
 
-- **Framework**: Hono.js — all routes in [apps/api/src/index.ts](apps/api/src/index.ts)
-- **Database**: Cloudflare D1 (SQLite). Schema in [apps/api/schema.sql](apps/api/schema.sql). Binding name is `DB`.
-- **Cron**: Runs every 30 minutes (`*/30 * * * *`) to sync live match data from API-Sports, recalculate scores, and update rankings.
-- **Auth**: JWT via `JWT_SECRET` env var; invitation-based registration via token.
-- **Environment variables**: `JWT_SECRET`, `FOOTBALL_API_KEY`, `FRONTEND_URL` — configured in `wrangler.toml` and Cloudflare dashboard.
+- **Framework**: Hono. All routes in [apps/api/src/index.ts](apps/api/src/index.ts).
+- **Auth**: JWT (HS256 via `hono/jwt`) in [apps/api/src/auth.ts](apps/api/src/auth.ts); passwords hashed with PBKDF2/Web Crypto (bcrypt unavailable in Workers). Seeded admin (`0000000000`/`admin123`) uses a plaintext fallback in `verifyPassword`.
+- **Middleware**: `requireAuth` (Bearer token) on `/api/me`, `/api/matches`, `/api/predictions`; plus `requireAdmin` on `/api/admin/*`.
+- **Database**: D1 (SQLite). Migrations in `apps/api/migrations/` (schema + idempotent seed). Binding `DB`.
+- **Cron**: every 30 min — syncs teams/matches from the football provider into D1, recalculates prediction points, rebuilds rankings.
 
-**Data flow (cron)**:
-```
-ApiSportsProvider → fetch live results → scoring.ts → update predictions/rankings → prizes.ts
-```
+### Football providers (swappable)
 
-**Football provider abstraction** ([apps/api/src/providers/football.ts](apps/api/src/providers/football.ts)): interface that `ApiSportsProvider` implements. Swap for a mock during local dev if needed.
+Interface `FootballProvider` in [apps/api/src/providers/football.ts](apps/api/src/providers/football.ts). Selected by `FOOTBALL_PROVIDER` var:
+- `apisports` (default) — api-sports.io, header `x-apisports-key`, secret `FOOTBALL_API_KEY`. League 1 = World Cup. **Free plan only covers seasons 2022–2024** (2026 needs paid plan). Returns HTTP 200 with an `errors` object on failures — the provider throws on it.
+- `footballdata` — football-data.org v4, header `X-Auth-Token`, secret `FOOTBALL_DATA_API_KEY`, competition `WC`. IDs prefixed `team_fd_`/`match_fd_` to avoid collisions with api-sports ids.
 
-### Scoring System ([apps/api/src/scoring.ts](apps/api/src/scoring.ts))
+`WORLD_CUP_SEASON` var controls the season (2022 for testing, 2026 for the real event). `mapRoundToPhaseId` in index.ts maps both providers' round/stage strings to phase ids.
 
-Points vary by tournament phase:
-| Outcome | Groups | Knockouts/Final |
-|---|---|---|
-| Correct winner | 3 | 5–15 |
-| Exact score | 5 | 15–25 |
-| Goal difference bonus | 2 | — |
+### Scoring ([apps/api/src/scoring.ts](apps/api/src/scoring.ts))
 
-Special predictions: Champion (30 pts), Runner-up (15 pts), Top Scorer (20 pts).
+Phase-dependent points: groups 3 (winner) / +2 (goal diff) / 5 (exact); knockouts scale up to final 15/25. Special predictions: champion 30, runner-up 15, top scorer 20 ([apps/api/src/prizes.ts](apps/api/src/prizes.ts) splits 95% of the pool).
 
-### Prize Distribution ([apps/api/src/prizes.ts](apps/api/src/prizes.ts))
+### Frontend (static export — no server features)
 
-95% of pool distributed: 1st (50%), 2nd (20%), 3rd (10%), most exact scores (5%), most correct winners (5%), correct champion (5%), correct top scorer (5%).
+All data fetching is client-side (`"use client"` + `useEffect`) through [apps/web/src/lib/api.ts](apps/web/src/lib/api.ts), which stores the JWT in localStorage. Pages: `/` (landing), `/login` (login + invite registration, reads `?invite=` from `window.location`), `/ranking` (public), `/portal` (user predictions), `/admin` (stats, phases, sync, invitations). Role guards run client-side via `getUser()`.
 
-### Frontend (Next.js 15 App Router)
-
-- **UI**: shadcn/ui + Radix UI, TailwindCSS, dark mode by default
-- **State**: Zustand
-- **Animations**: Framer Motion
-- **Validation**: Zod
-- **Pages**: `/` (home/login), `/ranking` (public leaderboard), `/portal` (user predictions), `/admin` (dashboard)
-
-The frontend calls the deployed Workers API. The API URL is configured via environment variable consumed in Next.js.
+**Constraint**: `next.config.mjs` uses `output: 'export'` — never add server components/actions, `next/image` optimization, or API routes; they break the build. Avoid `useSearchParams` without Suspense (use `window.location` instead).
 
 ## Key Constraints
 
-- The Workers runtime is not Node.js — avoid Node-specific APIs in `apps/api`. Use Web-standard APIs.
-- D1 is SQLite; joins and transactions work, but no stored procedures.
-- `wrangler.toml` defines local D1 bindings; production bindings are set in the Cloudflare dashboard.
-- Next.js 15 uses React 19 — be aware of concurrent features and server/client component boundaries.
+- Workers runtime is not Node — Web APIs only in `apps/api`.
+- api-sports free plan: season 2022–2024 only; errors come embedded in HTTP-200 bodies.
+- football-data.org free tier: ~10 req/min rate limit.
+- The Worker name in wrangler.toml must stay `polla-mundial` (matches the Cloudflare Workers Builds project).

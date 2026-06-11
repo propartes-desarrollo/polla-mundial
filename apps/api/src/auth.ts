@@ -15,12 +15,12 @@ export async function createToken(user: JwtUser, secret: string): Promise<string
     name: user.name,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
   }
-  return sign(payload, secret)
+  return sign(payload, secret, 'HS256')
 }
 
 export async function verifyToken(token: string, secret: string): Promise<JwtUser | null> {
   try {
-    const p = await verify(token, secret)
+    const p = await verify(token, secret, 'HS256')
     return { id: String(p.id), role: String(p.role), name: String(p.name) }
   } catch {
     return null

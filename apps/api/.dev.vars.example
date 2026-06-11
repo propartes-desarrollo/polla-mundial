@@ -1,3 +1,4 @@
 # Copy this file to `.dev.vars` and fill in real values for local development.
 FOOTBALL_API_KEY="your-api-sports-key"
+FOOTBALL_DATA_API_KEY="your-football-data-org-key"
 JWT_SECRET="any-long-random-string"
