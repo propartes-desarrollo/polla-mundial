@@ -24,8 +24,19 @@ export class ApiSportsFootballProvider implements FootballProvider {
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`)
     }
-    
-    const data = await response.json()
+
+    const data = await response.json() as { response: any; errors?: unknown }
+
+    // api-sports returns HTTP 200 even on errors (plan limits, bad key, etc.),
+    // putting the reason in `errors`. Surface it instead of silently returning [].
+    const errors = data.errors
+    const hasErrors = Array.isArray(errors)
+      ? errors.length > 0
+      : errors && typeof errors === 'object' && Object.keys(errors).length > 0
+    if (hasErrors) {
+      throw new Error(`API-Sports: ${JSON.stringify(errors)}`)
+    }
+
     return data.response
   }
 

@@ -1,4 +1,4 @@
-name = "polla-mundialista-api"
+name = "polla-mundial"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
 
