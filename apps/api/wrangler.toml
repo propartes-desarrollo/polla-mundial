@@ -17,9 +17,9 @@ migrations_dir = "migrations"
 [vars]
 FRONTEND_URL = "http://localhost:3000"
 # Proveedor de datos: "apisports" (api-sports.io) o "footballdata" (football-data.org)
-FOOTBALL_PROVIDER = "apisports"
+FOOTBALL_PROVIDER = "footballdata"
 WORLD_CUP_LEAGUE_ID = "1"
-WORLD_CUP_SEASON = "2022"
+WORLD_CUP_SEASON = "2026"
 
 # SECRETS are NOT defined here (this file is committed to git).
 #   - Local dev:   put them in apps/api/.dev.vars  (gitignored)
