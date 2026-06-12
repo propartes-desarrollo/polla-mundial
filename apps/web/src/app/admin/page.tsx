@@ -135,6 +135,15 @@ export default function AdminDashboard() {
     }
   }
 
+  async function removeParticipant(p: Participant) {
+    if (!confirm(`¿Eliminar a ${p.name}?\n\nSe borran sus pronósticos y sale del ranking. Úsalo para quien no pagó o se retira voluntariamente. Esta acción no se puede deshacer.`)) return
+    setBusy(`del-${p.id}`); setError("")
+    try {
+      await apiFetch(`/api/admin/participants/${p.id}`, { method: "DELETE" })
+      await load()
+    } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
   async function cyclePhase(phase: Phase) {
     const next = phase.status === "PENDING" ? "OPEN" : phase.status === "OPEN" ? "CLOSED" : "PENDING"
     try {
@@ -259,6 +268,7 @@ export default function AdminDashboard() {
                 <th className="p-3 text-left">Participante</th>
                 <th className="p-3 text-left hidden sm:table-cell">Teléfono</th>
                 <th className="p-3 text-center">Estado</th>
+                <th className="p-3 text-center w-16">Quitar</th>
               </tr>
             </thead>
             <tbody>
@@ -274,10 +284,17 @@ export default function AdminDashboard() {
                       {p.paid ? "✓ Pagó" : "Pendiente"}
                     </button>
                   </td>
+                  <td className="p-3 text-center">
+                    <button onClick={() => removeParticipant(p)} disabled={busy === `del-${p.id}`}
+                      title="Eliminar participante (no pagó / se retira)"
+                      className="text-muted-foreground hover:text-primary disabled:opacity-50 text-base">
+                      🗑
+                    </button>
+                  </td>
                 </tr>
               ))}
               {participants.length === 0 && (
-                <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">
+                <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">
                   No hay participantes aún (o falta correr la migración de pagos).
                 </td></tr>
               )}

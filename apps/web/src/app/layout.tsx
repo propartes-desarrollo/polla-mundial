@@ -43,7 +43,7 @@ export default function RootLayout({
         <main className="flex-1">{children}</main>
         <footer className="border-t-4 border-primary bg-black py-6 text-center">
           <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">
-            ⚽ Polla hecha por el <span className="text-primary">Master Faiver</span>
+            Desarrollo: <span className="text-primary">Master Faiver</span>
           </p>
         </footer>
       </body>

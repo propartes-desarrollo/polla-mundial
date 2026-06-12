@@ -545,6 +545,33 @@ app.put('/api/admin/participants/:id/payment', async (c) => {
   return c.json({ success: true })
 })
 
+// Elimina a un participante (no pagó o se retira voluntariamente).
+// Borra sus pronósticos, especiales y ranking; libera su teléfono y su cupo.
+app.delete('/api/admin/participants/:id', async (c) => {
+  const id = c.req.param('id')
+  const u = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?')
+    .bind(id).first<{ role: string }>()
+  if (!u) return c.json({ error: 'Participante no encontrado' }, 404)
+  if (u.role === 'ADMIN') return c.json({ error: 'No se puede eliminar a un administrador' }, 400)
+
+  await c.env.DB.prepare('DELETE FROM predictions WHERE user_id = ?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM special_predictions WHERE user_id = ?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM rankings WHERE user_id = ?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
+
+  // Renumera las posiciones del ranking sin el eliminado.
+  const { results: order } = await c.env.DB.prepare(
+    'SELECT user_id FROM rankings ORDER BY total_points DESC, exact_scores DESC'
+  ).all<{ user_id: string }>()
+  let pos = 1
+  for (const row of order) {
+    await c.env.DB.prepare('UPDATE rankings SET position = ? WHERE user_id = ?').bind(pos, row.user_id).run()
+    pos++
+  }
+
+  return c.json({ success: true })
+})
+
 // Resultados oficiales del torneo (campeón, subcampeón, goleador).
 app.get('/api/admin/officials', async (c) => {
   const o = await getOfficials(c.env)
