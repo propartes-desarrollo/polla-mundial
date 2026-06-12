@@ -48,6 +48,10 @@ export class FootballDataProvider implements FootballProvider {
       if (['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'].includes(m.status)) status = 'IN_PLAY'
       if (['FINISHED', 'AWARDED'].includes(m.status)) status = 'FINISHED'
 
+      let winner: 'HOME' | 'AWAY' | null = null
+      if (m.score?.winner === 'HOME_TEAM') winner = 'HOME'
+      if (m.score?.winner === 'AWAY_TEAM') winner = 'AWAY'
+
       return {
         id: `match_fd_${m.id}`,
         homeTeamId: `team_fd_${m.homeTeam.id}`,
@@ -58,7 +62,8 @@ export class FootballDataProvider implements FootballProvider {
         awayScore: m.score?.fullTime?.away ?? null,
         // stage examples: GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS,
         // SEMI_FINALS, THIRD_PLACE, FINAL
-        phaseName: m.stage ?? 'GROUP_STAGE'
+        phaseName: m.stage ?? 'GROUP_STAGE',
+        winner
       }
     })
   }

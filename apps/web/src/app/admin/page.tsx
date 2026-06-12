@@ -9,6 +9,14 @@ interface Prize { label: string; amount: number }
 interface PrizeInfo { participants: number; paidCount: number; totalCollected: number; prizes: Prize[] }
 interface Stats { participants: number; paidCount: number; pendingCount: number; fee: number; totalCollected: number }
 interface Participant { id: string; name: string; phone: string; paid: number; points: number }
+interface Team { id: string; name: string }
+interface Officials {
+  championTeamId: string | null
+  runnerUpTeamId: string | null
+  topScorerName: string | null
+  championName: string | null
+  runnerUpName: string | null
+}
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: "EN JUEGO",
@@ -24,22 +32,32 @@ export default function AdminDashboard() {
   const [prizeInfo, setPrizeInfo] = useState<PrizeInfo | null>(null)
   const [phases, setPhases] = useState<Phase[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [offChampion, setOffChampion] = useState("")
+  const [offRunnerUp, setOffRunnerUp] = useState("")
+  const [offScorer, setOffScorer] = useState("")
   const [feeInput, setFeeInput] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
 
   async function load() {
-    const [s, pi, p, parts] = await Promise.all([
+    const [s, pi, p, parts, teamList, off] = await Promise.all([
       apiFetch<Stats>("/api/admin/stats"),
       apiFetch<PrizeInfo>("/api/prizes"),
       apiFetch<Phase[]>("/api/admin/phases"),
       apiFetch<Participant[]>("/api/admin/participants").catch(() => [] as Participant[]),
+      apiFetch<Team[]>("/api/teams").catch(() => [] as Team[]),
+      apiFetch<Officials | null>("/api/admin/officials").catch(() => null),
     ])
     setStats(s)
     setPrizeInfo(pi)
     setPhases(p)
     setParticipants(parts)
+    setTeams(teamList)
+    setOffChampion(off?.championTeamId ?? "")
+    setOffRunnerUp(off?.runnerUpTeamId ?? "")
+    setOffScorer(off?.topScorerName ?? "")
     setFeeInput(String(s.fee))
   }
 
@@ -75,6 +93,22 @@ export default function AdminDashboard() {
     try {
       await apiFetch("/api/admin/lock-specials", { method: "POST" })
       alert("Pronósticos especiales bloqueados.")
+    } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
+  async function saveOfficials() {
+    setBusy("officials"); setError("")
+    try {
+      const r = await apiFetch<{ rankedUsers: number }>("/api/admin/officials", {
+        method: "PUT",
+        body: JSON.stringify({
+          championTeamId: offChampion,
+          runnerUpTeamId: offRunnerUp,
+          topScorerName: offScorer,
+        }),
+      })
+      alert(`Resultados oficiales guardados. Ranking recalculado (${r.rankedUsers} participantes con puntos).`)
+      await load()
     } catch (e) { setError((e as Error).message) } finally { setBusy("") }
   }
 
@@ -171,6 +205,47 @@ export default function AdminDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* Resultados oficiales del torneo */}
+      <section className="mb-8">
+        <h2 className="section-bar headline text-xl mb-4">Resultados oficiales</h2>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <p className="text-xs text-muted-foreground mb-4">
+            El <b>campeón</b> y el <b>subcampeón</b> se detectan automáticamente al sincronizar cuando la final
+            esté finalizada. Aquí puedes registrarlos o corregirlos, y registrar el <b>goleador oficial</b> del
+            Mundial. Al guardar, el ranking se recalcula con los puntos especiales (30 / 15 / 20).
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">🏆 Campeón oficial</label>
+              <select value={offChampion} onChange={(e) => setOffChampion(e.target.value)}
+                className="w-full bg-input border border-border rounded px-2 py-2 text-sm">
+                <option value="">— Sin definir —</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">🥈 Subcampeón oficial</label>
+              <select value={offRunnerUp} onChange={(e) => setOffRunnerUp(e.target.value)}
+                className="w-full bg-input border border-border rounded px-2 py-2 text-sm">
+                <option value="">— Sin definir —</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">⚽ Goleador oficial</label>
+              <input value={offScorer} onChange={(e) => setOffScorer(e.target.value)} placeholder="Nombre del jugador"
+                className="w-full bg-input border border-border rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div className="mt-4 text-right">
+            <button onClick={saveOfficials} disabled={busy === "officials"}
+              className="bg-primary text-primary-foreground py-2 px-5 rounded font-black uppercase text-sm hover:bg-primary/90 disabled:opacity-50">
+              {busy === "officials" ? "Guardando..." : "Guardar y recalcular"}
+            </button>
+          </div>
         </div>
       </section>
 

@@ -88,6 +88,45 @@ function mapRoundToPhaseId(round: string): PhaseType {
   return 'phase_groups'
 }
 
+// --- Resultados oficiales (campeón, subcampeón, goleador) ---
+// Se guardan en la tabla `settings`. El sync los auto-detecta de la FINAL
+// sincronizada (sin pisar un registro manual); el admin puede registrarlos
+// o corregirlos por pantalla.
+
+interface Officials {
+  championTeamId: string | null
+  runnerUpTeamId: string | null
+  topScorerName: string | null
+}
+
+async function getOfficials(env: Bindings): Promise<Officials> {
+  const out: Officials = { championTeamId: null, runnerUpTeamId: null, topScorerName: null }
+  try {
+    const { results } = await env.DB.prepare(
+      "SELECT key, value FROM settings WHERE key IN ('official_champion','official_runner_up','official_top_scorer')"
+    ).all<{ key: string; value: string }>()
+    for (const r of results) {
+      if (r.key === 'official_champion') out.championTeamId = r.value || null
+      if (r.key === 'official_runner_up') out.runnerUpTeamId = r.value || null
+      if (r.key === 'official_top_scorer') out.topScorerName = r.value || null
+    }
+  } catch {
+    // tabla settings aún no existe
+  }
+  return out
+}
+
+// Para comparar nombres de goleador escritos por usuarios: minúsculas,
+// sin tildes y con espacios colapsados ("Mbappé " === "mbappe").
+function normName(s: string): string {
+  let out = ''
+  for (const ch of s.normalize('NFD')) {
+    const code = ch.codePointAt(0) ?? 0
+    if (code < 0x0300 || code > 0x036f) out += ch // omite marcas diacríticas
+  }
+  return out.toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
 // Pulls teams + matches from the football provider into D1, then recomputes scores.
 async function syncTournamentData(env: Bindings) {
   const provider = makeProvider(env)
@@ -112,6 +151,36 @@ async function syncTournamentData(env: Bindings) {
          away_score = excluded.away_score,
          match_date = excluded.match_date`
     ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore).run()
+  }
+
+  // Auto-detección de campeón y subcampeón cuando la FINAL ya terminó.
+  // Usa el campo `winner` del proveedor (cubre finales definidas por penales)
+  // y solo escribe si el admin no los registró manualmente (INSERT OR IGNORE).
+  const finalMatch = matches.find(
+    (m) => mapRoundToPhaseId(m.phaseName) === 'phase_final' && m.status === 'FINISHED'
+  )
+  if (finalMatch) {
+    let championId: string | null = null
+    let runnerUpId: string | null = null
+    if (finalMatch.winner === 'HOME') {
+      championId = finalMatch.homeTeamId; runnerUpId = finalMatch.awayTeamId
+    } else if (finalMatch.winner === 'AWAY') {
+      championId = finalMatch.awayTeamId; runnerUpId = finalMatch.homeTeamId
+    } else if (finalMatch.homeScore != null && finalMatch.awayScore != null && finalMatch.homeScore !== finalMatch.awayScore) {
+      const homeWins = finalMatch.homeScore > finalMatch.awayScore
+      championId = homeWins ? finalMatch.homeTeamId : finalMatch.awayTeamId
+      runnerUpId = homeWins ? finalMatch.awayTeamId : finalMatch.homeTeamId
+    }
+    if (championId && runnerUpId) {
+      try {
+        await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('official_champion', ?)")
+          .bind(championId).run()
+        await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('official_runner_up', ?)")
+          .bind(runnerUpId).run()
+      } catch {
+        // tabla settings aún no existe: la detección volverá a intentarse en el próximo sync
+      }
+    }
   }
 
   const rankedUsers = await recalculateScores(env)
@@ -146,6 +215,27 @@ async function recalculateScores(env: Bindings): Promise<number> {
       if (b.exactScore > 0) s.exact += 1
       if (b.correctWinner > 0) s.winners += 1
       stats.set(p.user_id, s)
+    }
+  }
+
+  // Puntos por pronósticos especiales (solo cuando hay resultados oficiales).
+  // Campeón 30 · Subcampeón 15 · Goleador 20 (ver SPECIAL_POINTS en scoring.ts).
+  const officials = await getOfficials(env)
+  if (officials.championTeamId || officials.runnerUpTeamId || officials.topScorerName) {
+    const { results: specials } = await env.DB.prepare(
+      `SELECT user_id, champion_team_id, runner_up_team_id, top_scorer_name FROM special_predictions`
+    ).all<{ user_id: string; champion_team_id: string | null; runner_up_team_id: string | null; top_scorer_name: string | null }>()
+
+    for (const sp of specials) {
+      let bonus = 0
+      if (officials.championTeamId && sp.champion_team_id === officials.championTeamId) bonus += 30
+      if (officials.runnerUpTeamId && sp.runner_up_team_id === officials.runnerUpTeamId) bonus += 15
+      if (officials.topScorerName && sp.top_scorer_name && normName(sp.top_scorer_name) === normName(officials.topScorerName)) bonus += 20
+      if (bonus > 0) {
+        const s = stats.get(sp.user_id) ?? { points: 0, exact: 0, winners: 0 }
+        s.points += bonus
+        stats.set(sp.user_id, s)
+      }
     }
   }
 
@@ -453,6 +543,44 @@ app.put('/api/admin/participants/:id/payment', async (c) => {
   await c.env.DB.prepare('UPDATE users SET paid = ? WHERE id = ?')
     .bind(paid ? 1 : 0, id).run()
   return c.json({ success: true })
+})
+
+// Resultados oficiales del torneo (campeón, subcampeón, goleador).
+app.get('/api/admin/officials', async (c) => {
+  const o = await getOfficials(c.env)
+  let championName: string | null = null
+  let runnerUpName: string | null = null
+  if (o.championTeamId) {
+    const t = await c.env.DB.prepare('SELECT name FROM teams WHERE id = ?').bind(o.championTeamId).first<{ name: string }>()
+    championName = t?.name ?? null
+  }
+  if (o.runnerUpTeamId) {
+    const t = await c.env.DB.prepare('SELECT name FROM teams WHERE id = ?').bind(o.runnerUpTeamId).first<{ name: string }>()
+    runnerUpName = t?.name ?? null
+  }
+  return c.json({ ...o, championName, runnerUpName })
+})
+
+// Registra/corrige los resultados oficiales y recalcula el ranking al instante.
+app.put('/api/admin/officials', async (c) => {
+  const { championTeamId, runnerUpTeamId, topScorerName } =
+    await c.req.json<{ championTeamId?: string; runnerUpTeamId?: string; topScorerName?: string }>()
+
+  const upsert = (key: string, value: string) =>
+    c.env.DB.prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).bind(key, value).run()
+
+  try {
+    if (championTeamId !== undefined) await upsert('official_champion', championTeamId)
+    if (runnerUpTeamId !== undefined) await upsert('official_runner_up', runnerUpTeamId)
+    if (topScorerName !== undefined) await upsert('official_top_scorer', topScorerName)
+  } catch {
+    return c.json({ error: 'Falta la tabla settings: corre la migración 0003 en la Console de D1' }, 500)
+  }
+
+  const rankedUsers = await recalculateScores(c.env)
+  return c.json({ success: true, rankedUsers })
 })
 
 // Actualiza la cuota de inscripción.

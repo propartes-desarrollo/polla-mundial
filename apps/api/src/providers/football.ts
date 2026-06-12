@@ -14,6 +14,9 @@ export interface ApiMatch {
   homeScore: number | null
   awayScore: number | null
   phaseName: string
+  // Ganador explícito del partido (clave en finales definidas por penales,
+  // donde el marcador puede quedar empatado).
+  winner?: 'HOME' | 'AWAY' | null
 }
 
 export interface FootballProvider {

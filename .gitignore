@@ -19,6 +19,7 @@ apps/api/.wrangler/
 
 # Claude Code local settings (records session permissions; may contain secrets)
 .claude/settings.json
+CLAUDE.md
 
 # Misc
 .DS_Store

@@ -59,6 +59,10 @@ export class ApiSportsFootballProvider implements FootballProvider {
       if (['1H', '2H', 'HT', 'ET', 'P'].includes(item.fixture.status.short)) status = 'IN_PLAY'
       if (['FT', 'AET', 'PEN'].includes(item.fixture.status.short)) status = 'FINISHED'
 
+      let winner: 'HOME' | 'AWAY' | null = null
+      if (item.teams.home.winner === true) winner = 'HOME'
+      if (item.teams.away.winner === true) winner = 'AWAY'
+
       return {
         id: `match_${item.fixture.id}`,
         homeTeamId: `team_${item.teams.home.id}`,
@@ -67,7 +71,8 @@ export class ApiSportsFootballProvider implements FootballProvider {
         status,
         homeScore: item.goals.home,
         awayScore: item.goals.away,
-        phaseName: item.league.round
+        phaseName: item.league.round,
+        winner
       }
     })
   }

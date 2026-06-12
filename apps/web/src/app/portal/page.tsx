@@ -217,14 +217,23 @@ export default function UserPortal() {
         </div>
       </section>
 
-      {/* Partidos */}
-      <section>
-        <h2 className="section-bar headline text-xl mb-4">Partidos</h2>
-        {matches.length === 0 && (
-          <p className="text-muted-foreground">No hay partidos disponibles todavía.</p>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {matches.map((match) => {
+      {/* Partidos agrupados por fase. Las fases finales aparecen aquí
+          automáticamente cuando el torneo define los cruces (vía sync). */}
+      {matches.length === 0 && (
+        <p className="text-muted-foreground">No hay partidos disponibles todavía.</p>
+      )}
+      {(() => {
+        const groups: { phase: string; items: Match[] }[] = []
+        for (const m of matches) {
+          const last = groups[groups.length - 1]
+          if (last && last.phase === m.phaseName) last.items.push(m)
+          else groups.push({ phase: m.phaseName, items: [m] })
+        }
+        return groups.map((g) => (
+          <section key={g.phase} className="mb-10">
+            <h2 className="section-bar headline text-xl mb-4">{g.phase}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {g.items.map((match) => {
             const editable = match.status === "SCHEDULED"
             const v = inputs[match.id] ?? { home: "", away: "" }
             return (
@@ -283,10 +292,12 @@ export default function UserPortal() {
                   )}
                 </div>
               </div>
-            )
-          })}
-        </div>
-      </section>
+                )
+              })}
+            </div>
+          </section>
+        ))
+      })()}
     </div>
   )
 }
