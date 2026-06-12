@@ -1,7 +1,7 @@
-# 📘 Guía del Participante — Polla Mundialista FIFA 2026
+# 📘 Guía del Participante — Polla Mundial FIFA 2026
 
-> Documento para compartir con los participantes. La versión corta para WhatsApp
-> está al final.
+> Esta guía también está publicada en la app: https://polla-mundial-bf4.pages.dev/reglas
+> La versión corta para WhatsApp está al final.
 
 ---
 
@@ -22,13 +22,13 @@ del recaudo se reparte entre los mejores.
 3. Tu teléfono será tu usuario para entrar después en **Entrar**.
 4. Paga la **cuota de inscripción** al organizador. Tu pago queda registrado y con
    él juegas la **fase de grupos** y los pronósticos especiales.
-5. Cuando termine la fase de grupos podrás hacer la **recarga** (un segundo pago)
+5. Cuando termine la fase de grupos podrás hacer una **recarga** (un segundo pago)
    para seguir pronosticando las fases finales — ver la sección 5.
 
 ## 3. Lo PRIMERO que debes hacer: pronósticos especiales
 
 Apenas entres, en **Mi Apuesta** encontrarás la sección **Pronósticos especiales**.
-Antes de que ruede el balón debes elegir:
+Antes de que termine la  primera ronda de la fase de grupos es decir el 27 de junio de 2026:
 
 | Pronóstico | Puntos si aciertas |
 |---|---|
@@ -36,13 +36,13 @@ Antes de que ruede el balón debes elegir:
 | 🥈 Subcampeón | **15** |
 | ⚽ Goleador del torneo | **20** |
 
-⚠️ **Estos pronósticos se bloquean antes del primer partido** y no se pueden
-cambiar durante todo el Mundial. ¡No dejes pasar la fecha!
+⚠️ **Estos pronósticos se bloquean el 27 de junio de 2026** y no se pueden
+cambiar durante el resto del Mundial. ¡No dejes pasar la fecha!
 
 ## 4. Cómo pronosticar los partidos
 
 En **Mi Apuesta** verás los partidos organizados por fase, cada uno con las
-banderas y la fecha/hora.
+banderas y la fecha/hora de Colombia.
 
 1. Escribe el marcador que crees (ej: 2 - 1).
 2. Pulsa **Guardar**.
@@ -60,7 +60,7 @@ banderas y la fecha/hora.
 | Semifinales y 3er puesto | 10 | — | 15 |
 | **Final** | **15** | — | **25** |
 
-> El marcador exacto **incluye** los puntos de ganador: ej. en grupos, si clavas
+> El marcador exacto **incluye** los puntos de ganador: ej. en grupos, si aciertas
 > el marcador sumas 3 + 2 + 5 = **10 puntos**. Las fases finales valen más:
 > ¡la final puede darte hasta 40!
 
@@ -98,8 +98,7 @@ los nuevos partidos antes de que empiecen.
 
 ## 7. Los premios 💰
 
-La bolsa sale del recaudo total: **inscripciones + recargas** (la organización
-retiene el 5% por administración). El resto se reparte así:
+La bolsa sale del recaudo total: **inscripciones + recargas** y se reparte así:
 
 | Premio | % de la bolsa |
 |---|---|
@@ -118,18 +117,16 @@ Los montos exactos en pesos están siempre visibles en la página **Posiciones**
 
 1. Solo compiten por premios quienes hayan **pagado la cuota de inscripción**.
 2. Los pronósticos de partido se bloquean **al inicio de cada partido**; los
-   especiales se bloquean **antes del primer partido del Mundial**.
+   especiales se bloquean **el 27 de junio de 2026**.
 3. Pronosticar las **fases finales requiere haber pagado la recarga**. Quien no
    recargue conserva sus puntos de grupos pero no suma más.
 4. Quien no pague o quiera retirarse será retirado de la polla por el organizador.
-5. Los resultados los trae automáticamente la plataforma de fuentes oficiales;
-   el organizador registra el goleador oficial al final del torneo.
-6. Las decisiones sobre casos no previstos las toma el organizador.
+5. Los resultados los trae automáticamente la plataforma de fuentes oficiales.
 
 ## 9. Preguntas frecuentes
 
 **¿Puedo cambiar un pronóstico?** Sí, hasta que el partido empiece.
-**¿Olvidé mi contraseña.** Contacta al organizador.
+**¿Olvidé mi contraseña?** Contacta al organizador: él puede asignarte una nueva.
 **¿Puedo entrar después de iniciado el Mundial?** Lo decide el organizador
 (tendrías menos partidos para sumar).
 **¿Cómo sé cuántos puntos me dio un partido?** En Mi Apuesta, cada partido
@@ -147,7 +144,7 @@ eliminatorias, desde dieciseisavos hasta la final.
 > Copia desde aquí hacia abajo y pégalo en el grupo. Personaliza las cuotas,
 > la fecha límite y los datos de pago antes de enviarlo.
 
-⚽🏆 *¡POLLA MUNDIALISTA 2026!* 🏆⚽
+⚽🏆 *¡POLLA MUNDIAL 2026!* 🏆⚽
 
 ¡Estás invitado a la mejor polla del Mundial! Así funciona:
 
@@ -156,7 +153,7 @@ eliminatorias, desde dieciseisavos hasta la final.
 2️⃣ *Paga tu inscripción*: $50.000 → [DATOS DE PAGO AQUÍ - Nequi/Daviplata/cuenta]
 Con ella juegas TODA la fase de grupos + tus pronósticos especiales.
 
-3️⃣ *Haz tus pronósticos especiales* apenas entres (¡se cierran antes del primer partido!):
+3️⃣ *Haz tus pronósticos especiales* apenas entres (¡se cierran el 27 de junio!):
 🏆 Campeón = 30 pts
 🥈 Subcampeón = 15 pts
 ⚽ Goleador = 20 pts
@@ -181,8 +178,10 @@ Con ella juegas TODA la fase de grupos + tus pronósticos especiales.
 
 📊 Tabla de posiciones EN VIVO: los puntos se actualizan solos con cada partido.
 
+📖 *Reglas completas:* https://polla-mundial-bf4.pages.dev/reglas
+
 🌐 *La app:* https://polla-mundial-bf4.pages.dev
 
-⏰ *Fecha límite para inscribirse y pagar:* [FECHA AQUÍ]
+⏰ *Fecha límite para inscribirse y pagar:* 12/06/2026
 
 ¡Que gane el que más sepa de fútbol! 🍀⚽

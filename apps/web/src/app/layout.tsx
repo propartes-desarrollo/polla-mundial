@@ -36,6 +36,9 @@ export default function RootLayout({
               <Link href="/portal" className="px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-900 rounded">
                 Mi Apuesta
               </Link>
+              <Link href="/reglas" className="px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-900 rounded">
+                Reglas
+              </Link>
               <NavAuth />
             </nav>
           </div>

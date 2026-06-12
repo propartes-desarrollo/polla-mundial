@@ -601,6 +601,23 @@ app.put('/api/admin/participants/:id/payment', async (c) => {
   return c.json({ success: true })
 })
 
+// Reestablece la contraseña de un participante (el admin la escribe y la guarda).
+app.put('/api/admin/participants/:id/password', async (c) => {
+  const id = c.req.param('id')
+  const { password } = await c.req.json<{ password: string }>()
+  if (!password || password.length < 4) {
+    return c.json({ error: 'La contraseña debe tener al menos 4 caracteres' }, 400)
+  }
+  const u = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?')
+    .bind(id).first<{ role: string }>()
+  if (!u) return c.json({ error: 'Participante no encontrado' }, 404)
+  if (u.role === 'ADMIN') return c.json({ error: 'No se puede cambiar la contraseña de un administrador desde aquí' }, 400)
+
+  const hash = await hashPassword(password)
+  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, id).run()
+  return c.json({ success: true })
+})
+
 // Marca/desmarca la recarga (fases finales) de un participante.
 app.put('/api/admin/participants/:id/recharge', async (c) => {
   const id = c.req.param('id')

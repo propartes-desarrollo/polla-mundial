@@ -22,6 +22,9 @@ export default function Home() {
           <Link href="/ranking" className="px-8 py-3 rounded bg-secondary text-secondary-foreground headline text-lg border border-border hover:bg-secondary/80 transition-colors">
             Ver posiciones
           </Link>
+          <Link href="/reglas" className="px-8 py-3 rounded bg-secondary text-secondary-foreground headline text-lg border border-border hover:bg-secondary/80 transition-colors">
+            ¿Cómo se juega?
+          </Link>
         </div>
       </div>
     </main>

@@ -154,6 +154,19 @@ export default function AdminDashboard() {
     }
   }
 
+  async function resetPassword(p: Participant) {
+    const pwd = prompt(`Nueva contraseña para ${p.name}:\n\n(mínimo 4 caracteres; compártesela por privado)`)
+    if (pwd === null) return // canceló
+    if (pwd.length < 4) { setError("La contraseña debe tener al menos 4 caracteres"); return }
+    setBusy(`pwd-${p.id}`); setError("")
+    try {
+      await apiFetch(`/api/admin/participants/${p.id}/password`, {
+        method: "PUT", body: JSON.stringify({ password: pwd }),
+      })
+      alert(`Contraseña de ${p.name} actualizada.`)
+    } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
   async function removeParticipant(p: Participant) {
     if (!confirm(`¿Eliminar a ${p.name}?\n\nSe borran sus pronósticos y sale del ranking. Úsalo para quien no pagó o se retira voluntariamente. Esta acción no se puede deshacer.`)) return
     setBusy(`del-${p.id}`); setError("")
@@ -297,6 +310,7 @@ export default function AdminDashboard() {
                 <th className="p-3 text-left hidden sm:table-cell">Teléfono</th>
                 <th className="p-3 text-center">Inscripción</th>
                 <th className="p-3 text-center">Recarga</th>
+                <th className="p-3 text-center w-16">Clave</th>
                 <th className="p-3 text-center w-16">Quitar</th>
               </tr>
             </thead>
@@ -323,6 +337,13 @@ export default function AdminDashboard() {
                     </button>
                   </td>
                   <td className="p-3 text-center">
+                    <button onClick={() => resetPassword(p)} disabled={busy === `pwd-${p.id}`}
+                      title="Reestablecer contraseña del participante"
+                      className="text-muted-foreground hover:text-accent disabled:opacity-50 text-base">
+                      🔑
+                    </button>
+                  </td>
+                  <td className="p-3 text-center">
                     <button onClick={() => removeParticipant(p)} disabled={busy === `del-${p.id}`}
                       title="Eliminar participante (no pagó / se retira)"
                       className="text-muted-foreground hover:text-primary disabled:opacity-50 text-base">
@@ -332,7 +353,7 @@ export default function AdminDashboard() {
                 </tr>
               ))}
               {participants.length === 0 && (
-                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">
+                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">
                   No hay participantes aún (o falta correr la migración de pagos).
                 </td></tr>
               )}

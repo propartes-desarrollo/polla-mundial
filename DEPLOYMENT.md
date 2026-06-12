@@ -132,7 +132,7 @@ npx tsx src/scoring.test.ts                    # tests de puntuación
 | POST | `/api/predictions` | usuario autenticado |
 | GET | `/api/admin/stats` | admin |
 | GET | `/api/admin/participants` | admin |
-| PUT | `/api/admin/participants/:id/payment` · `/:id/recharge` | admin |
+| PUT | `/api/admin/participants/:id/payment` · `/:id/recharge` · `/:id/password` | admin |
 | DELETE | `/api/admin/participants/:id` | admin |
 | PUT | `/api/admin/fee` | admin |
 | GET | `/api/admin/phases` · PUT `/api/admin/phases/:id` | admin |
