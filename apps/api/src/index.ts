@@ -4,7 +4,7 @@ import { ApiSportsFootballProvider } from './providers/ApiSportsProvider'
 import { FootballDataProvider } from './providers/FootballDataProvider'
 import { FootballProvider } from './providers/football'
 import { calculatePoints, PhaseType } from './scoring'
-import { calculatePrizeDistribution, DEFAULT_INSCRIPTION_FEE } from './prizes'
+import { calculatePrizeDistribution, DEFAULT_INSCRIPTION_FEE, DEFAULT_RECHARGE_FEE } from './prizes'
 import { translateTeamName } from './teamNames'
 import { createToken, verifyToken, hashPassword, verifyPassword, JwtUser } from './auth'
 
@@ -263,29 +263,47 @@ async function recalculateScores(env: Bindings): Promise<number> {
   return stats.size
 }
 
-// --- Recaudo (cuota configurable + control de pagos) ---
+// --- Recaudo (cuotas configurables + control de pagos y recargas) ---
 
-async function getInscriptionFee(env: Bindings): Promise<number> {
+async function getFeeSetting(env: Bindings, key: string, fallback: number): Promise<number> {
   try {
-    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'inscription_fee'")
-      .first<{ value: string }>()
+    const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?')
+      .bind(key).first<{ value: string }>()
     const n = row ? parseInt(row.value, 10) : NaN
-    return Number.isFinite(n) ? n : DEFAULT_INSCRIPTION_FEE
+    return Number.isFinite(n) ? n : fallback
   } catch {
-    return DEFAULT_INSCRIPTION_FEE // la tabla settings aún no existe
+    return fallback // la tabla settings aún no existe
+  }
+}
+
+const getInscriptionFee = (env: Bindings) => getFeeSetting(env, 'inscription_fee', DEFAULT_INSCRIPTION_FEE)
+const getRechargeFee = (env: Bindings) => getFeeSetting(env, 'recharge_fee', DEFAULT_RECHARGE_FEE)
+
+// ¿El usuario pagó la recarga para las fases finales? Si la columna
+// `recharged` aún no existe (migración 0004 sin correr), no se restringe.
+async function userHasRecharged(env: Bindings, userId: string): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare('SELECT COALESCE(recharged, 0) AS r FROM users WHERE id = ?')
+      .bind(userId).first<{ r: number }>()
+    return !!row?.r
+  } catch {
+    return true
   }
 }
 
 interface RecaudoInfo {
-  participants: number   // usuarios registrados (rol USER)
-  paidCount: number      // de esos, cuántos pagaron
+  participants: number    // usuarios registrados (rol USER)
+  paidCount: number       // de esos, cuántos pagaron la inscripción
   pendingCount: number
-  fee: number
-  totalCollected: number // paidCount * fee
+  rechargedCount: number  // cuántos pagaron la recarga de fases finales
+  fee: number             // cuota de inscripción
+  rechargeFee: number     // cuota de recarga
+  totalCollected: number  // paidCount * fee + rechargedCount * rechargeFee
 }
 
 async function getRecaudo(env: Bindings): Promise<RecaudoInfo> {
   const fee = await getInscriptionFee(env)
+  const rechargeFee = await getRechargeFee(env)
   const totalRow = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
     .first<{ n: number }>()
   const participants = totalRow?.n ?? 0
@@ -299,12 +317,23 @@ async function getRecaudo(env: Bindings): Promise<RecaudoInfo> {
     // columna `paid` no existe todavía → comportamiento previo (todos cuentan)
   }
 
+  let rechargedCount = 0 // fallback si la columna `recharged` aún no existe
+  try {
+    const rechargedRow = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER' AND recharged = 1")
+      .first<{ n: number }>()
+    rechargedCount = rechargedRow?.n ?? 0
+  } catch {
+    // columna `recharged` no existe todavía → las recargas no suman
+  }
+
   return {
     participants,
     paidCount,
     pendingCount: Math.max(0, participants - paidCount),
+    rechargedCount,
     fee,
-    totalCollected: paidCount * fee
+    rechargeFee,
+    totalCollected: paidCount * fee + rechargedCount * rechargeFee
   }
 }
 
@@ -383,12 +412,15 @@ app.get('/api/me', async (c) => {
   const user = c.get('user')
   const rank = await c.env.DB.prepare('SELECT total_points, position FROM rankings WHERE user_id = ?')
     .bind(user.id).first<{ total_points: number; position: number }>()
+  const recharged = user.role === 'ADMIN' ? true : await userHasRecharged(c.env, user.id)
   return c.json({
     id: user.id,
     name: user.name,
     role: user.role,
     points: rank?.total_points ?? 0,
-    position: rank?.position ?? 0
+    position: rank?.position ?? 0,
+    recharged,
+    rechargeFee: await getRechargeFee(c.env)
   })
 })
 
@@ -397,7 +429,7 @@ app.get('/api/matches', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT m.id, m.match_date AS matchDate, m.status,
             m.home_score AS homeScore, m.away_score AS awayScore,
-            ph.name AS phaseName,
+            m.phase_id AS phaseId, ph.name AS phaseName,
             ht.name AS homeName, ht.flag_url AS homeFlag,
             at.name AS awayName, at.flag_url AS awayFlag,
             p.predicted_home AS predictedHome,
@@ -421,10 +453,18 @@ app.post('/api/predictions', async (c) => {
     return c.json({ error: 'Marcador inválido' }, 400)
   }
 
-  const match = await c.env.DB.prepare('SELECT status FROM matches WHERE id = ?')
-    .bind(matchId).first<{ status: string }>()
+  const match = await c.env.DB.prepare('SELECT status, phase_id FROM matches WHERE id = ?')
+    .bind(matchId).first<{ status: string; phase_id: string }>()
   if (!match) return c.json({ error: 'Partido no encontrado' }, 404)
   if (match.status !== 'SCHEDULED') return c.json({ error: 'El partido ya está bloqueado' }, 400)
+
+  // Fases finales: solo puede pronosticar quien pagó la recarga.
+  if (match.phase_id !== 'phase_groups' && user.role !== 'ADMIN') {
+    const recharged = await userHasRecharged(c.env, user.id)
+    if (!recharged) {
+      return c.json({ error: 'Para pronosticar las fases finales debes pagar la recarga. Contacta al organizador.' }, 403)
+    }
+  }
 
   const id = crypto.randomUUID()
   await c.env.DB.prepare(
@@ -522,18 +562,34 @@ app.get('/api/admin/stats', async (c) => {
   return c.json(recaudo)
 })
 
-// Lista de participantes con su estado de pago (para el control de recaudo).
+// Lista de participantes con su estado de pago y recarga (control de recaudo).
 app.get('/api/admin/participants', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT u.id, u.name, u.phone,
-            COALESCE(u.paid, 0) AS paid,
-            COALESCE(r.total_points, 0) AS points
-     FROM users u
-     LEFT JOIN rankings r ON r.user_id = u.id
-     WHERE u.role = 'USER'
-     ORDER BY u.name`
-  ).all()
-  return c.json(results)
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT u.id, u.name, u.phone,
+              COALESCE(u.paid, 0) AS paid,
+              COALESCE(u.recharged, 0) AS recharged,
+              COALESCE(r.total_points, 0) AS points
+       FROM users u
+       LEFT JOIN rankings r ON r.user_id = u.id
+       WHERE u.role = 'USER'
+       ORDER BY u.name`
+    ).all()
+    return c.json(results)
+  } catch {
+    // columna `recharged` aún no existe (migración 0004 sin correr)
+    const { results } = await c.env.DB.prepare(
+      `SELECT u.id, u.name, u.phone,
+              COALESCE(u.paid, 0) AS paid,
+              0 AS recharged,
+              COALESCE(r.total_points, 0) AS points
+       FROM users u
+       LEFT JOIN rankings r ON r.user_id = u.id
+       WHERE u.role = 'USER'
+       ORDER BY u.name`
+    ).all()
+    return c.json(results)
+  }
 })
 
 // Marca/desmarca el pago de un participante.
@@ -542,6 +598,19 @@ app.put('/api/admin/participants/:id/payment', async (c) => {
   const { paid } = await c.req.json<{ paid: boolean }>()
   await c.env.DB.prepare('UPDATE users SET paid = ? WHERE id = ?')
     .bind(paid ? 1 : 0, id).run()
+  return c.json({ success: true })
+})
+
+// Marca/desmarca la recarga (fases finales) de un participante.
+app.put('/api/admin/participants/:id/recharge', async (c) => {
+  const id = c.req.param('id')
+  const { recharged } = await c.req.json<{ recharged: boolean }>()
+  try {
+    await c.env.DB.prepare('UPDATE users SET recharged = ? WHERE id = ?')
+      .bind(recharged ? 1 : 0, id).run()
+  } catch {
+    return c.json({ error: 'Falta la columna recharged: corre la migración 0004 en la Console de D1' }, 500)
+  }
   return c.json({ success: true })
 })
 
@@ -610,14 +679,22 @@ app.put('/api/admin/officials', async (c) => {
   return c.json({ success: true, rankedUsers })
 })
 
-// Actualiza la cuota de inscripción.
+// Actualiza la cuota de inscripción y/o la cuota de recarga.
 app.put('/api/admin/fee', async (c) => {
-  const { fee } = await c.req.json<{ fee: number }>()
-  if (!Number.isFinite(fee) || fee < 0) return c.json({ error: 'Cuota inválida' }, 400)
-  await c.env.DB.prepare(
-    `INSERT INTO settings (key, value) VALUES ('inscription_fee', ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
-  ).bind(String(Math.round(fee))).run()
+  const { fee, rechargeFee } = await c.req.json<{ fee?: number; rechargeFee?: number }>()
+  const upsert = (key: string, value: number) =>
+    c.env.DB.prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).bind(key, String(Math.round(value))).run()
+
+  if (fee !== undefined) {
+    if (!Number.isFinite(fee) || fee < 0) return c.json({ error: 'Cuota de inscripción inválida' }, 400)
+    await upsert('inscription_fee', fee)
+  }
+  if (rechargeFee !== undefined) {
+    if (!Number.isFinite(rechargeFee) || rechargeFee < 0) return c.json({ error: 'Cuota de recarga inválida' }, 400)
+    await upsert('recharge_fee', rechargeFee)
+  }
   return c.json({ success: true })
 })
 

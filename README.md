@@ -17,7 +17,11 @@ calculada sobre el recaudo real.
 1. El admin genera un **enlace de invitación** desde el panel y se lo envía al participante.
 2. El participante se registra con nombre, teléfono y contraseña.
 3. El admin marca su pago en el **Control de pagos** (el recaudo solo cuenta a quienes pagaron).
-4. La **cuota de inscripción** es configurable desde el panel admin (por defecto $50.000 COP).
+4. Hay **dos cuotas configurables** desde el panel admin:
+   - **Inscripción** (por defecto $50.000 COP): da derecho a jugar la fase de grupos
+     y los pronósticos especiales.
+   - **Recarga de fases finales** (por defecto $30.000 COP): habilita los pronósticos
+     de dieciseisavos en adelante (ver punto 3).
 
 ### 2. Pronósticos especiales (una sola vez por torneo)
 Antes de que arranque el Mundial, cada participante elige:
@@ -46,9 +50,20 @@ al iniciar el partido se bloquea automáticamente.
 **¿Cuándo aparecen las fases finales?** Automáticamente. La API de fútbol publica
 los cruces de cada fase eliminatoria apenas se definen (al cerrar grupos se conocen
 los dieciseisavos, etc.). El sync (cron cada 30 min o botón del admin) inserta esos
-partidos nuevos y aparecen en el portal **abiertos para pronosticar** hasta su inicio.
-Así el participante "recarga" su apuesta en cada fase: entra al portal, ve la nueva
-sección de la fase y pronostica esos cruces.
+partidos nuevos y aparecen en el portal como una nueva sección.
+
+**La recarga de la apuesta.** Pronosticar los partidos de fases finales requiere un
+segundo pago: la **recarga** (un único pago que cubre TODAS las eliminatorias, desde
+dieciseisavos hasta la final). El flujo:
+
+1. El participante paga la recarga al organizador.
+2. El admin la activa con el toggle **⚡ Recargó** del Control de pagos.
+3. Desde ese momento el participante puede pronosticar los cruces de eliminatorias.
+
+Quien **no recarga** conserva sus puntos de grupos y sigue visible en la tabla de
+posiciones, pero sus partidos de fases finales quedan bloqueados (el portal le
+muestra el aviso "⚡ Requiere recarga" con el monto a pagar) y deja de sumar puntos.
+El API también rechaza esos pronósticos en el servidor (HTTP 403), no solo en la UI.
 
 ### 4. Cierre del torneo (automático)
 - Al sincronizarse la **final** ya terminada, el sistema detecta solos al **campeón
@@ -59,8 +74,8 @@ sección de la fase y pronostica esos cruces.
 - Cada vez que se guardan resultados oficiales, el ranking se recalcula al instante.
 
 ### 5. Bolsa de premios
-El recaudo = participantes que pagaron × cuota. La organización retiene el 5%;
-el 95% restante se reparte así:
+El recaudo = inscripciones pagadas × cuota + recargas pagadas × cuota de recarga.
+La organización retiene el 5%; el 95% restante se reparte así:
 
 | Premio | % de la bolsa |
 |---|---|
@@ -92,7 +107,8 @@ mundial/                      (monorepo npm workspaces, Node 20)
 │   │   │       ├── football.ts             Interfaz + mock
 │   │   │       ├── FootballDataProvider.ts  football-data.org (activo)
 │   │   │       └── ApiSportsProvider.ts     api-sports.io (alternativo)
-│   │   ├── migrations/       SQL de la base D1 (0001 schema, 0002 seed, 0003 recaudo)
+│   │   ├── migrations/       SQL de la base D1 (0001 schema, 0002 seed,
+│   │   │                     0003 recaudo, 0004 recarga)
 │   │   └── wrangler.toml     Config del Worker (D1, cron, vars)
 │   └── web/                  Frontend — Next.js 15 (export estático) en Cloudflare Pages
 │       └── src/

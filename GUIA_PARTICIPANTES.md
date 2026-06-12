@@ -20,8 +20,10 @@ del recaudo se reparte entre los mejores.
 1. Recibirás un **enlace de invitación** personal (la entrada es solo por invitación).
 2. Ábrelo y completa el registro: **nombre, teléfono y una contraseña**.
 3. Tu teléfono será tu usuario para entrar después en **Entrar**.
-4. Paga la cuota de inscripción al organizador. Tu pago queda registrado y con
-   él entras a competir por la bolsa.
+4. Paga la **cuota de inscripción** al organizador. Tu pago queda registrado y con
+   él juegas la **fase de grupos** y los pronósticos especiales.
+5. Cuando termine la fase de grupos podrás hacer la **recarga** (un segundo pago)
+   para seguir pronosticando las fases finales — ver la sección 5.
 
 ## 3. Lo PRIMERO que debes hacer: pronósticos especiales
 
@@ -62,14 +64,29 @@ banderas y la fecha/hora.
 > el marcador sumas 3 + 2 + 5 = **10 puntos**. Las fases finales valen más:
 > ¡la final puede darte hasta 40!
 
-## 5. Las fases finales se "recargan"
+## 5. La RECARGA: tu apuesta para las fases finales 💪
 
-Cuando termine la fase de grupos, los cruces de **dieciseisavos** aparecerán
-automáticamente en **Mi Apuesta** como una nueva sección, abiertos para
-pronosticar. Lo mismo pasará con octavos, cuartos, semifinales y la final.
+Tu cuota de inscripción cubre la **fase de grupos**. Para seguir compitiendo en
+las **fases finales** (dieciseisavos, octavos, cuartos, semifinales y final) debes
+hacer una **recarga de tu apuesta**: un único pago adicional que habilita TODOS
+los partidos de eliminatorias hasta la final.
 
-📲 **Tu tarea:** entrar a la app al inicio de cada fase y pronosticar los
-nuevos partidos antes de que empiecen.
+**Cómo funciona:**
+
+1. Al cerrar la fase de grupos, los cruces de dieciseisavos aparecen
+   automáticamente en **Mi Apuesta** como una nueva sección.
+2. Si aún no has recargado, esos partidos se ven con la marca **⚡ Requiere
+   recarga** y la app te muestra el monto a pagar.
+3. Paga la recarga al organizador → él la activa → quedas habilitado para
+   pronosticar todas las eliminatorias.
+
+**¿Y si no recargo?** Conservas tus puntos de la fase de grupos y sigues
+apareciendo en la tabla de posiciones, pero no podrás pronosticar los partidos
+de fases finales (dejas de sumar puntos por partido). Como la recarga también
+engorda la bolsa de premios, ¡recargar conviene a todos! 🤑
+
+📲 **Tu tarea en cada fase:** entrar a la app al inicio de la fase y pronosticar
+los nuevos partidos antes de que empiecen.
 
 ## 6. La tabla de posiciones
 
@@ -81,8 +98,8 @@ nuevos partidos antes de que empiecen.
 
 ## 7. Los premios 💰
 
-La bolsa sale del recaudo (la organización retiene el 5% por administración).
-El resto se reparte así:
+La bolsa sale del recaudo total: **inscripciones + recargas** (la organización
+retiene el 5% por administración). El resto se reparte así:
 
 | Premio | % de la bolsa |
 |---|---|
@@ -99,13 +116,15 @@ Los montos exactos en pesos están siempre visibles en la página **Posiciones**
 
 ## 8. Reglas claras
 
-1. Solo compiten por premios quienes hayan **pagado la cuota**.
+1. Solo compiten por premios quienes hayan **pagado la cuota de inscripción**.
 2. Los pronósticos de partido se bloquean **al inicio de cada partido**; los
    especiales se bloquean **antes del primer partido del Mundial**.
-3. Quien no pague o quiera retirarse será retirado de la polla por el organizador.
-4. Los resultados los trae automáticamente la plataforma de fuentes oficiales;
+3. Pronosticar las **fases finales requiere haber pagado la recarga**. Quien no
+   recargue conserva sus puntos de grupos pero no suma más.
+4. Quien no pague o quiera retirarse será retirado de la polla por el organizador.
+5. Los resultados los trae automáticamente la plataforma de fuentes oficiales;
    el organizador registra el goleador oficial al final del torneo.
-5. Las decisiones sobre casos no previstos las toma el organizador.
+6. Las decisiones sobre casos no previstos las toma el organizador.
 
 ## 9. Preguntas frecuentes
 
@@ -115,13 +134,17 @@ Los montos exactos en pesos están siempre visibles en la página **Posiciones**
 (tendrías menos partidos para sumar).
 **¿Cómo sé cuántos puntos me dio un partido?** En Mi Apuesta, cada partido
 terminado muestra tu pronóstico y los puntos que te dejó.
+**¿Qué pasa si no pago la recarga?** Conservas tus puntos de grupos y sigues en
+la tabla, pero no puedes pronosticar las fases finales (dejas de sumar).
+**¿La recarga es por cada fase?** No: es **un solo pago** que cubre todas las
+eliminatorias, desde dieciseisavos hasta la final.
 
 ---
 ---
 
 # 📲 Mensaje listo para WhatsApp
 
-> Copia desde aquí hacia abajo y pégalo en el grupo. Personaliza la cuota,
+> Copia desde aquí hacia abajo y pégalo en el grupo. Personaliza las cuotas,
 > la fecha límite y los datos de pago antes de enviarlo.
 
 ⚽🏆 *¡POLLA MUNDIALISTA 2026!* 🏆⚽
@@ -131,13 +154,16 @@ terminado muestra tu pronóstico y los puntos que te dejó.
 1️⃣ *Regístrate* con el enlace de invitación que te llega por privado (nombre, celular y contraseña).
 
 2️⃣ *Paga tu inscripción*: $50.000 → [DATOS DE PAGO AQUÍ - Nequi/Daviplata/cuenta]
+Con ella juegas TODA la fase de grupos + tus pronósticos especiales.
 
 3️⃣ *Haz tus pronósticos especiales* apenas entres (¡se cierran antes del primer partido!):
 🏆 Campeón = 30 pts
 🥈 Subcampeón = 15 pts
 ⚽ Goleador = 20 pts
 
-4️⃣ *Pronostica cada partido* con marcador exacto en "Mi Apuesta". Puedes cambiarlos hasta que el partido empiece. Cada fase nueva aparece sola en la app: ¡entra y pronostica antes de cada jornada!
+4️⃣ *Pronostica cada partido* con marcador exacto en "Mi Apuesta". Puedes cambiarlos hasta que el partido empiece.
+
+5️⃣ *⚡ RECARGA para las fases finales:* al terminar la fase de grupos, pagas una recarga de $30.000 (un solo pago) y quedas habilitado para pronosticar TODAS las eliminatorias, de 16avos a la FINAL. Quien no recarga conserva sus puntos de grupos pero deja de sumar. ¡Y la recarga engorda la bolsa de premios! 💰
 
 *PUNTOS POR PARTIDO:*
 ▪️ Grupos: ganador 3 / dif. goles +2 / exacto 5
@@ -146,7 +172,7 @@ terminado muestra tu pronóstico y los puntos que te dejó.
 ▪️ Semis y 3er puesto: ganador 10 / exacto 15
 ▪️ FINAL: ganador 15 / exacto 25 🔥
 
-*PREMIOS (del recaudo total):* 💰
+*PREMIOS (inscripciones + recargas):* 💰
 🥇 1er puesto: 50%
 🥈 2do: 20%
 🥉 3ro: 10%

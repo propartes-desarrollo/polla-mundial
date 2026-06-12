@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, getUser, logout } from "@/lib/api"
 
-interface Me { name: string; points: number; position: number }
+interface Me { name: string; points: number; position: number; recharged: boolean; rechargeFee: number }
 
 interface Match {
   id: string
@@ -12,6 +12,7 @@ interface Match {
   status: "SCHEDULED" | "IN_PLAY" | "FINISHED"
   homeScore: number | null
   awayScore: number | null
+  phaseId: string
   phaseName: string
   homeName: string
   awayName: string
@@ -30,6 +31,8 @@ interface Specials {
   topScorerName: string | null
   locked: number
 }
+
+const fmtCOP = (n: number) => `$${n.toLocaleString("es-CO")}`
 
 function fmtDate(iso: string): string {
   try {
@@ -141,6 +144,9 @@ export default function UserPortal() {
 
   const specialsLocked = !!specials?.locked
   const teamById = (id: string) => teams.find((t) => t.id === id)
+  // Las fases finales requieren haber pagado la recarga de la apuesta.
+  const needsRecharge = (m: Match) => m.phaseId !== "phase_groups" && !!me && !me.recharged
+  const hasKnockoutMatches = matches.some((m) => m.phaseId !== "phase_groups")
 
   return (
     <div className="container mx-auto p-4 md:p-8 min-h-screen">
@@ -160,6 +166,19 @@ export default function UserPortal() {
 
       {error && <div className="bg-primary/15 border border-primary text-sm rounded p-3 mb-4 font-medium">{error}</div>}
       {notice && <div className="bg-emerald-600/15 border border-emerald-600 text-sm rounded p-3 mb-4 font-medium">{notice}</div>}
+
+      {/* Aviso de recarga: aparece cuando ya existen partidos de fases finales
+          y el participante aún no ha pagado la recarga. */}
+      {me && !me.recharged && hasKnockoutMatches && (
+        <div className="bg-accent/10 border border-accent text-sm rounded p-4 mb-4">
+          <p className="font-black uppercase text-accent mb-1">⚡ ¡Recarga tu apuesta!</p>
+          <p className="text-muted-foreground">
+            Las fases finales ya están en juego. Para pronosticar esos partidos paga la
+            recarga de <b className="text-foreground">{fmtCOP(me.rechargeFee)}</b> al organizador
+            y pídele que active tu recarga. Tus puntos de la fase de grupos se conservan.
+          </p>
+        </div>
+      )}
 
       {/* Pronósticos especiales */}
       <section className="mb-10">
@@ -234,13 +253,18 @@ export default function UserPortal() {
             <h2 className="section-bar headline text-xl mb-4">{g.phase}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {g.items.map((match) => {
-            const editable = match.status === "SCHEDULED"
+            const locked = needsRecharge(match)
+            const editable = match.status === "SCHEDULED" && !locked
             const v = inputs[match.id] ?? { home: "", away: "" }
             return (
               <div key={match.id} className="bg-card border border-border rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between bg-black/40 px-3 py-1.5 border-b border-border">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">{fmtDate(match.matchDate)}</span>
-                  <StatusChip status={match.status} />
+                  {locked && match.status === "SCHEDULED" ? (
+                    <span className="text-[10px] font-black uppercase bg-accent text-accent-foreground px-2 py-0.5 rounded">⚡ Recarga</span>
+                  ) : (
+                    <StatusChip status={match.status} />
+                  )}
                 </div>
 
                 <div className="p-3 space-y-2">
@@ -276,6 +300,10 @@ export default function UserPortal() {
                       className="w-full bg-primary text-primary-foreground py-2 rounded font-black uppercase text-sm hover:bg-primary/90 disabled:opacity-50">
                       {savingId === match.id ? "Guardando..." : "Guardar"}
                     </button>
+                  ) : locked && match.status === "SCHEDULED" ? (
+                    <div className="text-center text-xs border-t border-border pt-2 font-black uppercase text-accent">
+                      ⚡ Requiere recarga
+                    </div>
                   ) : (
                     <div className="text-center text-xs border-t border-border pt-2">
                       {match.predictedHome != null ? (

@@ -55,6 +55,8 @@ La versión de Node la fija el archivo `.nvmrc` (20).
 3. En la pestaña **Console** de la D1, ejecutar el contenido de:
    - `apps/api/migrations/0001_schema.sql` (tablas)
    - `apps/api/migrations/0002_seed.sql` (fases + admin inicial)
+   - `apps/api/migrations/0003_recaudo.sql` (control de pagos + tabla settings)
+   - `apps/api/migrations/0004_recarga.sql` (recarga de fases finales)
 
 Admin inicial: teléfono `0000000000`, contraseña `admin123` (cámbiala en producción).
 
@@ -129,6 +131,10 @@ npx tsx src/scoring.test.ts                    # tests de puntuación
 | GET | `/api/matches` | usuario autenticado |
 | POST | `/api/predictions` | usuario autenticado |
 | GET | `/api/admin/stats` | admin |
+| GET | `/api/admin/participants` | admin |
+| PUT | `/api/admin/participants/:id/payment` · `/:id/recharge` | admin |
+| DELETE | `/api/admin/participants/:id` | admin |
+| PUT | `/api/admin/fee` | admin |
 | GET | `/api/admin/phases` · PUT `/api/admin/phases/:id` | admin |
 | POST | `/api/admin/invitations` | admin |
 | POST | `/api/admin/sync` | admin |

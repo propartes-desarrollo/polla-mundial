@@ -7,8 +7,8 @@ import { apiFetch, getUser, logout } from "@/lib/api"
 interface Phase { id: string; name: string; status: string }
 interface Prize { label: string; amount: number }
 interface PrizeInfo { participants: number; paidCount: number; totalCollected: number; prizes: Prize[] }
-interface Stats { participants: number; paidCount: number; pendingCount: number; fee: number; totalCollected: number }
-interface Participant { id: string; name: string; phone: string; paid: number; points: number }
+interface Stats { participants: number; paidCount: number; pendingCount: number; rechargedCount: number; fee: number; rechargeFee: number; totalCollected: number }
+interface Participant { id: string; name: string; phone: string; paid: number; recharged: number; points: number }
 interface Team { id: string; name: string }
 interface Officials {
   championTeamId: string | null
@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [offRunnerUp, setOffRunnerUp] = useState("")
   const [offScorer, setOffScorer] = useState("")
   const [feeInput, setFeeInput] = useState("")
+  const [rechargeFeeInput, setRechargeFeeInput] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
@@ -59,6 +60,7 @@ export default function AdminDashboard() {
     setOffRunnerUp(off?.runnerUpTeamId ?? "")
     setOffScorer(off?.topScorerName ?? "")
     setFeeInput(String(s.fee))
+    setRechargeFeeInput(String(s.rechargeFee ?? 0))
   }
 
   useEffect(() => {
@@ -115,7 +117,10 @@ export default function AdminDashboard() {
   async function saveFee() {
     setBusy("fee"); setError("")
     try {
-      await apiFetch("/api/admin/fee", { method: "PUT", body: JSON.stringify({ fee: Number(feeInput) }) })
+      await apiFetch("/api/admin/fee", {
+        method: "PUT",
+        body: JSON.stringify({ fee: Number(feeInput), rechargeFee: Number(rechargeFeeInput) }),
+      })
       await load()
     } catch (e) { setError((e as Error).message) } finally { setBusy("") }
   }
@@ -132,6 +137,20 @@ export default function AdminDashboard() {
     } catch (e) {
       setError((e as Error).message)
       setParticipants((prev) => prev.map((x) => x.id === p.id ? { ...x, paid: p.paid } : x)) // revertir
+    }
+  }
+
+  async function toggleRecharged(p: Participant) {
+    setParticipants((prev) => prev.map((x) => x.id === p.id ? { ...x, recharged: p.recharged ? 0 : 1 } : x))
+    try {
+      await apiFetch(`/api/admin/participants/${p.id}/recharge`, {
+        method: "PUT", body: JSON.stringify({ recharged: !p.recharged }),
+      })
+      const [s, pi] = await Promise.all([apiFetch<Stats>("/api/admin/stats"), apiFetch<PrizeInfo>("/api/prizes")])
+      setStats(s); setPrizeInfo(pi)
+    } catch (e) {
+      setError((e as Error).message)
+      setParticipants((prev) => prev.map((x) => x.id === p.id ? { ...x, recharged: p.recharged } : x)) // revertir
     }
   }
 
@@ -164,7 +183,7 @@ export default function AdminDashboard() {
       {error && <div className="bg-primary/15 border border-primary text-sm rounded p-3 mb-6 font-medium">{error}</div>}
 
       {/* Métricas de recaudo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-card border border-border p-4 rounded-lg">
           <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide">Inscritos</p>
           <p className="text-3xl font-black mt-1">{stats?.participants ?? "—"}</p>
@@ -178,23 +197,32 @@ export default function AdminDashboard() {
           <p className="text-3xl font-black text-primary mt-1">{stats?.pendingCount ?? "—"}</p>
         </div>
         <div className="bg-card border border-border p-4 rounded-lg">
+          <p className="text-[10px] uppercase font-bold text-sky-400 tracking-wide">Recargaron</p>
+          <p className="text-3xl font-black text-sky-400 mt-1">{stats?.rechargedCount ?? "—"}</p>
+        </div>
+        <div className="bg-card border border-border p-4 rounded-lg col-span-2 md:col-span-1">
           <p className="text-[10px] uppercase font-bold text-accent tracking-wide">Recaudo</p>
           <p className="text-2xl font-black text-accent mt-1">{fmtCOP(stats?.totalCollected ?? 0)}</p>
         </div>
       </div>
 
-      {/* Cuota configurable */}
+      {/* Cuotas configurables */}
       <div className="bg-card border border-border rounded-lg p-4 mb-8 flex flex-wrap items-end gap-3">
         <div>
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">Cuota de inscripción (COP)</label>
           <input type="number" min={0} value={feeInput} onChange={(e) => setFeeInput(e.target.value)}
             className="bg-input border border-border rounded px-3 py-2 w-40 font-bold" />
         </div>
+        <div>
+          <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">Recarga fases finales (COP)</label>
+          <input type="number" min={0} value={rechargeFeeInput} onChange={(e) => setRechargeFeeInput(e.target.value)}
+            className="bg-input border border-border rounded px-3 py-2 w-40 font-bold" />
+        </div>
         <button onClick={saveFee} disabled={busy === "fee"}
           className="bg-secondary text-secondary-foreground py-2 px-4 rounded font-bold uppercase text-sm hover:bg-secondary/80 disabled:opacity-50">
-          {busy === "fee" ? "Guardando..." : "Actualizar cuota"}
+          {busy === "fee" ? "Guardando..." : "Actualizar cuotas"}
         </button>
-        <p className="text-xs text-muted-foreground">El recaudo = participantes que pagaron × cuota.</p>
+        <p className="text-xs text-muted-foreground">Recaudo = pagaron × inscripción + recargaron × recarga.</p>
       </div>
 
       {/* Premios */}
@@ -258,7 +286,7 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {/* Control de pagos */}
+      {/* Control de pagos y recargas */}
       <section className="mb-8">
         <h2 className="section-bar headline text-xl mb-4">Control de pagos</h2>
         <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -267,7 +295,8 @@ export default function AdminDashboard() {
               <tr className="bg-black/40 text-muted-foreground text-[11px] uppercase tracking-wider font-bold">
                 <th className="p-3 text-left">Participante</th>
                 <th className="p-3 text-left hidden sm:table-cell">Teléfono</th>
-                <th className="p-3 text-center">Estado</th>
+                <th className="p-3 text-center">Inscripción</th>
+                <th className="p-3 text-center">Recarga</th>
                 <th className="p-3 text-center w-16">Quitar</th>
               </tr>
             </thead>
@@ -285,6 +314,15 @@ export default function AdminDashboard() {
                     </button>
                   </td>
                   <td className="p-3 text-center">
+                    <button onClick={() => toggleRecharged(p)}
+                      title="Recarga de fases finales: habilita sus pronósticos de eliminatorias"
+                      className={p.recharged
+                        ? "text-xs font-black uppercase bg-sky-500/15 text-sky-400 px-3 py-1 rounded-full hover:bg-sky-500/25"
+                        : "text-xs font-black uppercase bg-muted/30 text-muted-foreground px-3 py-1 rounded-full hover:bg-muted/50"}>
+                      {p.recharged ? "⚡ Recargó" : "Sin recarga"}
+                    </button>
+                  </td>
+                  <td className="p-3 text-center">
                     <button onClick={() => removeParticipant(p)} disabled={busy === `del-${p.id}`}
                       title="Eliminar participante (no pagó / se retira)"
                       className="text-muted-foreground hover:text-primary disabled:opacity-50 text-base">
@@ -294,7 +332,7 @@ export default function AdminDashboard() {
                 </tr>
               ))}
               {participants.length === 0 && (
-                <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">
+                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">
                   No hay participantes aún (o falta correr la migración de pagos).
                 </td></tr>
               )}
