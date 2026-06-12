@@ -530,22 +530,88 @@ app.post('/api/special-predictions', async (c) => {
 })
 
 // --- Premios (público: desglose en dinero según participantes) ---
+// Cada premio incluye quiénes lo van ganando (orden del ranking). Si varios
+// aciertan, el monto se divide en partes iguales (perWinner); por acuerdo
+// entre los ganadores, el total se lo puede llevar el mejor ranqueado.
+
+interface PrizeWinner { name: string; position: number }
 
 app.get('/api/prizes', async (c) => {
   const recaudo = await getRecaudo(c.env)
   const dist = calculatePrizeDistribution(recaudo.totalCollected)
+
+  // Ranking en el mismo orden que /api/ranking, para nombrar y posicionar ganadores.
+  const { results: ranks } = await c.env.DB.prepare(
+    `SELECT u.id, u.name,
+            r.total_points AS points,
+            r.exact_scores AS exact,
+            r.correct_winners AS correct
+     FROM rankings r
+     JOIN users u ON u.id = r.user_id
+     WHERE u.role = 'USER'
+     ORDER BY r.total_points DESC, r.exact_scores DESC`
+  ).all<{ id: string; name: string; points: number; exact: number; correct: number }>()
+
+  const posById = new Map<string, number>()
+  ranks.forEach((r, i) => posById.set(r.id, i + 1))
+  const toWinner = (r: { id: string; name: string }): PrizeWinner =>
+    ({ name: r.name, position: posById.get(r.id) ?? 0 })
+  const byRanking = (a: { id: string }, b: { id: string }) =>
+    (posById.get(a.id) ?? 9999) - (posById.get(b.id) ?? 9999)
+
+  // 1er/2do/3er puesto del ranking (solo si ya tienen puntos).
+  const top = (i: number): PrizeWinner[] =>
+    ranks[i] && ranks[i].points > 0 ? [toWinner(ranks[i])] : []
+
+  // Más exactos / más ganadores: todos los que igualan el máximo (>0).
+  const maxExact = Math.max(0, ...ranks.map((r) => r.exact))
+  const mostExact = maxExact > 0 ? ranks.filter((r) => r.exact === maxExact).map(toWinner) : []
+  const maxCorrect = Math.max(0, ...ranks.map((r) => r.correct))
+  const mostCorrect = maxCorrect > 0 ? ranks.filter((r) => r.correct === maxCorrect).map(toWinner) : []
+
+  // Aciertos de campeón y goleador (solo cuando hay resultados oficiales).
+  const officials = await getOfficials(c.env)
+  let championHits: PrizeWinner[] = []
+  let scorerHits: PrizeWinner[] = []
+  if (officials.championTeamId || officials.topScorerName) {
+    const { results: specials } = await c.env.DB.prepare(
+      `SELECT sp.user_id AS id, u.name,
+              sp.champion_team_id AS champ,
+              sp.top_scorer_name AS scorer
+       FROM special_predictions sp
+       JOIN users u ON u.id = sp.user_id
+       WHERE u.role = 'USER'`
+    ).all<{ id: string; name: string; champ: string | null; scorer: string | null }>()
+    if (officials.championTeamId) {
+      championHits = specials.filter((s) => s.champ === officials.championTeamId)
+        .sort(byRanking).map(toWinner)
+    }
+    if (officials.topScorerName) {
+      const target = normName(officials.topScorerName)
+      scorerHits = specials.filter((s) => s.scorer && normName(s.scorer) === target)
+        .sort(byRanking).map(toWinner)
+    }
+  }
+
+  const prize = (label: string, amount: number, winners: PrizeWinner[]) => ({
+    label,
+    amount: Math.round(amount),
+    winners,
+    perWinner: winners.length > 0 ? Math.round(amount / winners.length) : null
+  })
+
   return c.json({
     participants: recaudo.participants,
     paidCount: recaudo.paidCount,
     totalCollected: dist.totalCollected,
     prizes: [
-      { label: 'Campeón de la polla (1er puesto)', amount: Math.round(dist.prizes.firstPlace) },
-      { label: 'Subcampeón (2do puesto)', amount: Math.round(dist.prizes.secondPlace) },
-      { label: 'Tercer puesto', amount: Math.round(dist.prizes.thirdPlace) },
-      { label: 'Más marcadores exactos', amount: Math.round(dist.prizes.mostExactScores) },
-      { label: 'Más ganadores acertados', amount: Math.round(dist.prizes.mostCorrectWinners) },
-      { label: 'Acertar el campeón del Mundial', amount: Math.round(dist.prizes.correctChampion) },
-      { label: 'Acertar el goleador del Mundial', amount: Math.round(dist.prizes.correctTopScorer) }
+      prize('Campeón de la polla (1er puesto)', dist.prizes.firstPlace, top(0)),
+      prize('Subcampeón (2do puesto)', dist.prizes.secondPlace, top(1)),
+      prize('Tercer puesto', dist.prizes.thirdPlace, top(2)),
+      prize('Más marcadores exactos', dist.prizes.mostExactScores, mostExact),
+      prize('Más ganadores acertados', dist.prizes.mostCorrectWinners, mostCorrect),
+      prize('Acertar el campeón del Mundial', dist.prizes.correctChampion, championHits),
+      prize('Acertar el goleador del Mundial', dist.prizes.correctTopScorer, scorerHits)
     ]
   })
 })

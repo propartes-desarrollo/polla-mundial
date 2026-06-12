@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { apiFetch, getUser, logout } from "@/lib/api"
 
 interface Phase { id: string; name: string; status: string }
-interface Prize { label: string; amount: number }
+interface PrizeWinner { name: string; position: number }
+interface Prize { label: string; amount: number; winners?: PrizeWinner[]; perWinner?: number | null }
 interface PrizeInfo { participants: number; paidCount: number; totalCollected: number; prizes: Prize[] }
 interface Stats { participants: number; paidCount: number; pendingCount: number; rechargedCount: number; fee: number; rechargeFee: number; totalCollected: number }
 interface Participant { id: string; name: string; phone: string; paid: number; recharged: number; points: number }
@@ -246,8 +247,18 @@ export default function AdminDashboard() {
             <tbody>
               {(prizeInfo?.prizes ?? []).map((p, i) => (
                 <tr key={p.label} className={i % 2 ? "bg-black/20" : ""}>
-                  <td className="px-4 py-3 font-medium">{p.label}</td>
-                  <td className="px-4 py-3 text-right font-black text-accent whitespace-nowrap">{fmtCOP(p.amount)}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-medium">{p.label}</span>
+                    {(p.winners?.length ?? 0) > 0 && (
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        {p.winners!.length > 1
+                          ? `Se divide entre ${p.winners!.length} (${fmtCOP(p.perWinner ?? 0)} c/u): `
+                          : "🏅 "}
+                        {p.winners!.map((w) => `${w.name} (${w.position}º)`).join(", ")}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-black text-accent whitespace-nowrap align-top">{fmtCOP(p.amount)}</td>
                 </tr>
               ))}
               {!prizeInfo?.prizes?.length && (
@@ -255,6 +266,13 @@ export default function AdminDashboard() {
               )}
             </tbody>
           </table>
+          {!!prizeInfo?.prizes?.length && (
+            <p className="px-4 py-3 text-xs text-muted-foreground border-t border-border">
+              Si varios aciertan un mismo premio, se divide en partes iguales (orden del
+              ranking final); o, por acuerdo entre los ganadores, el total se lo lleva el
+              mejor ranqueado.
+            </p>
+          )}
         </div>
       </section>
 

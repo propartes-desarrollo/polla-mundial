@@ -113,6 +113,11 @@ La bolsa sale del recaudo total: **inscripciones + recargas** y se reparte así:
 Los montos exactos en pesos están siempre visibles en la página **Posiciones**
 (crecen a medida que entran más participantes).
 
+**¿Y si varios aciertan un mismo premio?** (p. ej. dos personas atinaron al
+campeón) El premio se **divide en partes iguales** entre quienes acertaron,
+mostrados en el orden del ranking final. O, por acuerdo entre los ganadores,
+el premio completo se lo puede llevar el mejor ranqueado.
+
 ## 8. Reglas claras
 
 1. Solo compiten por premios quienes hayan **pagado la cuota de inscripción**.
@@ -175,6 +180,7 @@ Con ella juegas TODA la fase de grupos + tus pronósticos especiales.
 🥉 3ro: 10%
 🎯 Más exactos: 5% | ✅ Más ganadores: 5%
 🏆 Atinarle al campeón: 5% | ⚽ Al goleador: 5%
+(Si varios aciertan un premio, se divide en partes iguales — o por acuerdo se lo lleva el mejor ranqueado)
 
 📊 Tabla de posiciones EN VIVO: los puntos se actualizan solos con cada partido.
 

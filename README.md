@@ -87,7 +87,10 @@ La organización retiene el 5%; el 95% restante se reparte así:
 | Acertar el campeón del Mundial | 5% |
 | Acertar el goleador del Mundial | 5% |
 
-Los montos en pesos se muestran en la página pública de posiciones y en el panel admin.
+Los montos en pesos se muestran en la página pública de posiciones y en el panel
+admin, junto con quiénes van ganando cada premio (en orden del ranking). Si varios
+participantes aciertan un mismo premio, este se divide en partes iguales entre
+ellos; o, por acuerdo entre los ganadores, el total se lo lleva el mejor ranqueado.
 
 ---
 

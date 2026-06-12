@@ -11,7 +11,8 @@ interface RankRow {
   correctWinners: number
 }
 
-interface Prize { label: string; amount: number }
+interface PrizeWinner { name: string; position: number }
+interface Prize { label: string; amount: number; winners?: PrizeWinner[]; perWinner?: number | null }
 interface PrizeInfo { participants: number; totalCollected: number; prizes: Prize[] }
 
 const fmtCOP = (n: number) => `$${n.toLocaleString("es-CO")}`
@@ -90,8 +91,18 @@ export default function RankingPage() {
             <tbody>
               {(prizeInfo?.prizes ?? []).map((p, i) => (
                 <tr key={p.label} className={`border-t border-border ${i % 2 ? "bg-black/20" : ""}`}>
-                  <td className="px-4 py-2.5 font-medium text-xs">{p.label}</td>
-                  <td className="px-4 py-2.5 text-right font-black text-accent whitespace-nowrap">{fmtCOP(p.amount)}</td>
+                  <td className="px-4 py-2.5 text-xs">
+                    <span className="font-medium">{p.label}</span>
+                    {(p.winners?.length ?? 0) > 0 && (
+                      <span className="block text-[11px] text-muted-foreground mt-0.5">
+                        {p.winners!.length > 1
+                          ? `Se divide entre ${p.winners!.length} (${fmtCOP(p.perWinner ?? 0)} c/u): `
+                          : "🏅 "}
+                        {p.winners!.map((w) => `${w.name} (${w.position}º)`).join(", ")}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-black text-accent whitespace-nowrap align-top">{fmtCOP(p.amount)}</td>
                 </tr>
               ))}
               {!prizeInfo?.prizes?.length && (
@@ -99,6 +110,13 @@ export default function RankingPage() {
               )}
             </tbody>
           </table>
+          {!!prizeInfo?.prizes?.length && (
+            <p className="px-4 py-3 text-[11px] text-muted-foreground border-t border-border">
+              Si varios participantes aciertan un mismo premio, este se divide en partes
+              iguales (se muestran en el orden del ranking final); o, por acuerdo entre
+              los ganadores, el total se lo puede llevar el mejor ranqueado.
+            </p>
+          )}
         </div>
       </div>
     </div>

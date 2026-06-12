@@ -259,11 +259,20 @@ export default function ReglasPage() {
               ))}
             </tbody>
           </table>
-          <p className="p-5 text-sm text-muted-foreground">
-            Los montos exactos en pesos están siempre visibles en la página{" "}
-            <Link href="/ranking" className="text-accent hover:underline font-bold">Posiciones</Link>{" "}
-            (crecen a medida que entran más participantes).
-          </p>
+          <div className="p-5 text-sm text-muted-foreground space-y-3">
+            <p>
+              Los montos exactos en pesos están siempre visibles en la página{" "}
+              <Link href="/ranking" className="text-accent hover:underline font-bold">Posiciones</Link>{" "}
+              (crecen a medida que entran más participantes).
+            </p>
+            <p className="border-l-4 border-accent pl-3">
+              <b className="text-foreground">¿Y si varios aciertan un mismo premio?</b>{" "}
+              (p. ej. dos personas atinaron al campeón) El premio se{" "}
+              <b className="text-foreground">divide en partes iguales</b> entre quienes
+              acertaron, mostrados en el orden del ranking final. O, por acuerdo entre
+              los ganadores, el premio completo se lo puede llevar el mejor ranqueado.
+            </p>
+          </div>
         </div>
       </section>
 
