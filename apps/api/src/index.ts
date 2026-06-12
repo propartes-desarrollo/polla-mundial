@@ -4,7 +4,7 @@ import { ApiSportsFootballProvider } from './providers/ApiSportsProvider'
 import { FootballDataProvider } from './providers/FootballDataProvider'
 import { FootballProvider } from './providers/football'
 import { calculatePoints, PhaseType } from './scoring'
-import { calculatePrizeDistribution } from './prizes'
+import { calculatePrizeDistribution, DEFAULT_INSCRIPTION_FEE } from './prizes'
 import { translateTeamName } from './teamNames'
 import { createToken, verifyToken, hashPassword, verifyPassword, JwtUser } from './auth'
 
@@ -22,9 +22,6 @@ type Bindings = {
 type Variables = {
   user: JwtUser
 }
-
-const ENTRY_FEE = 50000 // COP por participante
-const PRIZE_RATE = 0.95
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -174,6 +171,51 @@ async function recalculateScores(env: Bindings): Promise<number> {
   }
 
   return stats.size
+}
+
+// --- Recaudo (cuota configurable + control de pagos) ---
+
+async function getInscriptionFee(env: Bindings): Promise<number> {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'inscription_fee'")
+      .first<{ value: string }>()
+    const n = row ? parseInt(row.value, 10) : NaN
+    return Number.isFinite(n) ? n : DEFAULT_INSCRIPTION_FEE
+  } catch {
+    return DEFAULT_INSCRIPTION_FEE // la tabla settings aún no existe
+  }
+}
+
+interface RecaudoInfo {
+  participants: number   // usuarios registrados (rol USER)
+  paidCount: number      // de esos, cuántos pagaron
+  pendingCount: number
+  fee: number
+  totalCollected: number // paidCount * fee
+}
+
+async function getRecaudo(env: Bindings): Promise<RecaudoInfo> {
+  const fee = await getInscriptionFee(env)
+  const totalRow = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
+    .first<{ n: number }>()
+  const participants = totalRow?.n ?? 0
+
+  let paidCount = participants // fallback si la columna `paid` aún no existe
+  try {
+    const paidRow = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER' AND paid = 1")
+      .first<{ n: number }>()
+    paidCount = paidRow?.n ?? 0
+  } catch {
+    // columna `paid` no existe todavía → comportamiento previo (todos cuentan)
+  }
+
+  return {
+    participants,
+    paidCount,
+    pendingCount: Math.max(0, participants - paidCount),
+    fee,
+    totalCollected: paidCount * fee
+  }
 }
 
 // ============================ Routes ============================
@@ -360,11 +402,11 @@ app.post('/api/special-predictions', async (c) => {
 // --- Premios (público: desglose en dinero según participantes) ---
 
 app.get('/api/prizes', async (c) => {
-  const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
-    .first<{ n: number }>()
-  const dist = calculatePrizeDistribution(row?.n ?? 0)
+  const recaudo = await getRecaudo(c.env)
+  const dist = calculatePrizeDistribution(recaudo.totalCollected)
   return c.json({
-    participants: row?.n ?? 0,
+    participants: recaudo.participants,
+    paidCount: recaudo.paidCount,
     totalCollected: dist.totalCollected,
     prizes: [
       { label: 'Campeón de la polla (1er puesto)', amount: Math.round(dist.prizes.firstPlace) },
@@ -386,12 +428,42 @@ app.post('/api/admin/lock-specials', async (c) => {
 })
 
 app.get('/api/admin/stats', async (c) => {
-  const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
-    .first<{ n: number }>()
-  const participants = row?.n ?? 0
-  const totalCollected = participants * ENTRY_FEE
-  const prizePool = Math.round(totalCollected * PRIZE_RATE)
-  return c.json({ participants, totalCollected, prizePool })
+  const recaudo = await getRecaudo(c.env)
+  return c.json(recaudo)
+})
+
+// Lista de participantes con su estado de pago (para el control de recaudo).
+app.get('/api/admin/participants', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.phone,
+            COALESCE(u.paid, 0) AS paid,
+            COALESCE(r.total_points, 0) AS points
+     FROM users u
+     LEFT JOIN rankings r ON r.user_id = u.id
+     WHERE u.role = 'USER'
+     ORDER BY u.name`
+  ).all()
+  return c.json(results)
+})
+
+// Marca/desmarca el pago de un participante.
+app.put('/api/admin/participants/:id/payment', async (c) => {
+  const id = c.req.param('id')
+  const { paid } = await c.req.json<{ paid: boolean }>()
+  await c.env.DB.prepare('UPDATE users SET paid = ? WHERE id = ?')
+    .bind(paid ? 1 : 0, id).run()
+  return c.json({ success: true })
+})
+
+// Actualiza la cuota de inscripción.
+app.put('/api/admin/fee', async (c) => {
+  const { fee } = await c.req.json<{ fee: number }>()
+  if (!Number.isFinite(fee) || fee < 0) return c.json({ error: 'Cuota inválida' }, 400)
+  await c.env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES ('inscription_fee', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).bind(String(Math.round(fee))).run()
+  return c.json({ success: true })
 })
 
 app.get('/api/admin/phases', async (c) => {

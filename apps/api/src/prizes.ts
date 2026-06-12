@@ -13,10 +13,11 @@ export interface PrizeDistribution {
   }
 }
 
-export const INSCRIPTION_FEE = 50000
+export const DEFAULT_INSCRIPTION_FEE = 50000
 
-export function calculatePrizeDistribution(activeParticipants: number): PrizeDistribution {
-  const totalCollected = activeParticipants * INSCRIPTION_FEE
+// totalCollected = (participantes que pagaron) × cuota. La organización
+// retiene el 5%; el 95% restante se reparte en premios.
+export function calculatePrizeDistribution(totalCollected: number): PrizeDistribution {
   const prizePool = totalCollected * 0.95
   const organizerFee = totalCollected * 0.05
 

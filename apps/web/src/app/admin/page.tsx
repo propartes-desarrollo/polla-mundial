@@ -6,7 +6,9 @@ import { apiFetch, getUser, logout } from "@/lib/api"
 
 interface Phase { id: string; name: string; status: string }
 interface Prize { label: string; amount: number }
-interface PrizeInfo { participants: number; totalCollected: number; prizes: Prize[] }
+interface PrizeInfo { participants: number; paidCount: number; totalCollected: number; prizes: Prize[] }
+interface Stats { participants: number; paidCount: number; pendingCount: number; fee: number; totalCollected: number }
+interface Participant { id: string; name: string; phone: string; paid: number; points: number }
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: "EN JUEGO",
@@ -18,19 +20,27 @@ const fmtCOP = (n: number) => `$${n.toLocaleString("es-CO")}`
 
 export default function AdminDashboard() {
   const router = useRouter()
+  const [stats, setStats] = useState<Stats | null>(null)
   const [prizeInfo, setPrizeInfo] = useState<PrizeInfo | null>(null)
   const [phases, setPhases] = useState<Phase[]>([])
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [feeInput, setFeeInput] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
 
   async function load() {
-    const [pi, p] = await Promise.all([
+    const [s, pi, p, parts] = await Promise.all([
+      apiFetch<Stats>("/api/admin/stats"),
       apiFetch<PrizeInfo>("/api/prizes"),
       apiFetch<Phase[]>("/api/admin/phases"),
+      apiFetch<Participant[]>("/api/admin/participants").catch(() => [] as Participant[]),
     ])
+    setStats(s)
     setPrizeInfo(pi)
     setPhases(p)
+    setParticipants(parts)
+    setFeeInput(String(s.fee))
   }
 
   useEffect(() => {
@@ -60,12 +70,35 @@ export default function AdminDashboard() {
   }
 
   async function handleLockSpecials() {
-    if (!confirm("¿Bloquear los pronósticos especiales de TODOS los participantes? Esta acción no se puede deshacer desde la app.")) return
+    if (!confirm("¿Bloquear los pronósticos especiales de TODOS los participantes?")) return
     setBusy("lock"); setError("")
     try {
       await apiFetch("/api/admin/lock-specials", { method: "POST" })
       alert("Pronósticos especiales bloqueados.")
     } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
+  async function saveFee() {
+    setBusy("fee"); setError("")
+    try {
+      await apiFetch("/api/admin/fee", { method: "PUT", body: JSON.stringify({ fee: Number(feeInput) }) })
+      await load()
+    } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
+  async function togglePaid(p: Participant) {
+    // Optimista: refleja el cambio al instante
+    setParticipants((prev) => prev.map((x) => x.id === p.id ? { ...x, paid: p.paid ? 0 : 1 } : x))
+    try {
+      await apiFetch(`/api/admin/participants/${p.id}/payment`, {
+        method: "PUT", body: JSON.stringify({ paid: !p.paid }),
+      })
+      const [s, pi] = await Promise.all([apiFetch<Stats>("/api/admin/stats"), apiFetch<PrizeInfo>("/api/prizes")])
+      setStats(s); setPrizeInfo(pi)
+    } catch (e) {
+      setError((e as Error).message)
+      setParticipants((prev) => prev.map((x) => x.id === p.id ? { ...x, paid: p.paid } : x)) // revertir
+    }
   }
 
   async function cyclePhase(phase: Phase) {
@@ -87,19 +120,41 @@ export default function AdminDashboard() {
 
       {error && <div className="bg-primary/15 border border-primary text-sm rounded p-3 mb-6 font-medium">{error}</div>}
 
-      {/* Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="bg-card border border-border p-5 rounded-lg">
-          <p className="text-[11px] uppercase font-bold text-muted-foreground tracking-wide">Participantes activos</p>
-          <p className="text-4xl font-black text-foreground mt-1">{prizeInfo?.participants ?? "—"}</p>
+      {/* Métricas de recaudo */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-card border border-border p-4 rounded-lg">
+          <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide">Inscritos</p>
+          <p className="text-3xl font-black mt-1">{stats?.participants ?? "—"}</p>
         </div>
-        <div className="bg-card border border-border p-5 rounded-lg">
-          <p className="text-[11px] uppercase font-bold text-muted-foreground tracking-wide">Recaudo total</p>
-          <p className="text-4xl font-black text-foreground mt-1">{fmtCOP(prizeInfo?.totalCollected ?? 0)}</p>
+        <div className="bg-card border border-border p-4 rounded-lg">
+          <p className="text-[10px] uppercase font-bold text-emerald-400 tracking-wide">Pagaron</p>
+          <p className="text-3xl font-black text-emerald-400 mt-1">{stats?.paidCount ?? "—"}</p>
+        </div>
+        <div className="bg-card border border-border p-4 rounded-lg">
+          <p className="text-[10px] uppercase font-bold text-primary tracking-wide">Pendientes</p>
+          <p className="text-3xl font-black text-primary mt-1">{stats?.pendingCount ?? "—"}</p>
+        </div>
+        <div className="bg-card border border-border p-4 rounded-lg">
+          <p className="text-[10px] uppercase font-bold text-accent tracking-wide">Recaudo</p>
+          <p className="text-2xl font-black text-accent mt-1">{fmtCOP(stats?.totalCollected ?? 0)}</p>
         </div>
       </div>
 
-      {/* Desglose de premios */}
+      {/* Cuota configurable */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-8 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">Cuota de inscripción (COP)</label>
+          <input type="number" min={0} value={feeInput} onChange={(e) => setFeeInput(e.target.value)}
+            className="bg-input border border-border rounded px-3 py-2 w-40 font-bold" />
+        </div>
+        <button onClick={saveFee} disabled={busy === "fee"}
+          className="bg-secondary text-secondary-foreground py-2 px-4 rounded font-bold uppercase text-sm hover:bg-secondary/80 disabled:opacity-50">
+          {busy === "fee" ? "Guardando..." : "Actualizar cuota"}
+        </button>
+        <p className="text-xs text-muted-foreground">El recaudo = participantes que pagaron × cuota.</p>
+      </div>
+
+      {/* Premios */}
       <section className="mb-8">
         <h2 className="section-bar headline text-xl mb-4">Premios</h2>
         <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -112,7 +167,44 @@ export default function AdminDashboard() {
                 </tr>
               ))}
               {!prizeInfo?.prizes?.length && (
-                <tr><td className="px-4 py-6 text-center text-muted-foreground">Sin participantes aún — los premios se calculan según el recaudo.</td></tr>
+                <tr><td className="px-4 py-6 text-center text-muted-foreground">Sin recaudo aún.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Control de pagos */}
+      <section className="mb-8">
+        <h2 className="section-bar headline text-xl mb-4">Control de pagos</h2>
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-black/40 text-muted-foreground text-[11px] uppercase tracking-wider font-bold">
+                <th className="p-3 text-left">Participante</th>
+                <th className="p-3 text-left hidden sm:table-cell">Teléfono</th>
+                <th className="p-3 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map((p, i) => (
+                <tr key={p.id} className={`border-t border-border ${i % 2 ? "bg-black/20" : ""}`}>
+                  <td className="p-3 font-bold uppercase">{p.name}</td>
+                  <td className="p-3 text-muted-foreground hidden sm:table-cell">{p.phone}</td>
+                  <td className="p-3 text-center">
+                    <button onClick={() => togglePaid(p)}
+                      className={p.paid
+                        ? "text-xs font-black uppercase bg-emerald-500/15 text-emerald-400 px-3 py-1 rounded-full hover:bg-emerald-500/25"
+                        : "text-xs font-black uppercase bg-primary/15 text-primary px-3 py-1 rounded-full hover:bg-primary/25"}>
+                      {p.paid ? "✓ Pagó" : "Pendiente"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {participants.length === 0 && (
+                <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">
+                  No hay participantes aún (o falta correr la migración de pagos).
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -120,7 +212,6 @@ export default function AdminDashboard() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Acciones */}
         <div className="bg-card border border-border p-5 rounded-lg flex flex-col gap-3">
           <h2 className="headline text-lg border-b border-border pb-2">Acciones rápidas</h2>
           <button onClick={handleSync} disabled={busy === "sync"}
@@ -143,7 +234,6 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Fases */}
         <div className="bg-card border border-border p-5 rounded-lg">
           <h2 className="headline text-lg border-b border-border pb-2 mb-4">Gestión de fases</h2>
           <ul className="space-y-3">
