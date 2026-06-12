@@ -140,4 +140,5 @@ npx tsx src/scoring.test.ts                    # tests de puntuación
 | POST | `/api/admin/sync` | admin |
 | GET | `/api/football/status` | público (diagnóstico del proveedor, no toca BD) |
 
-El **cron cada 30 min** ejecuta el mismo sync automáticamente.
+El **cron** ejecuta el mismo sync automáticamente a la :01 y :31 de cada hora,
+excepto entre la 1:01 AM y las 5:59 AM hora Colombia (06-10 UTC, franja sin partidos).

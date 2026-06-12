@@ -49,7 +49,7 @@ al iniciar el partido se bloquea automáticamente.
 
 **¿Cuándo aparecen las fases finales?** Automáticamente. La API de fútbol publica
 los cruces de cada fase eliminatoria apenas se definen (al cerrar grupos se conocen
-los dieciseisavos, etc.). El sync (cron cada 30 min o botón del admin) inserta esos
+los dieciseisavos, etc.). El sync (cron a la :01 y :31 de cada hora, o botón del admin) inserta esos
 partidos nuevos y aparecen en el portal como una nueva sección.
 
 **La recarga de la apuesta.** Pronosticar los partidos de fases finales requiere un
@@ -128,7 +128,8 @@ mundial/                      (monorepo npm workspaces, Node 20)
 ```
 
 ### Stack
-- **Backend:** Hono sobre Cloudflare Workers · D1 (SQLite) · cron cada 30 min
+- **Backend:** Hono sobre Cloudflare Workers · D1 (SQLite) · cron a la :01 y :31
+  de cada hora (pausa 1:01–5:59 AM Colombia, franja sin partidos)
 - **Frontend:** Next.js 15 estático · TailwindCSS (tema estilo ESPN) · Cloudflare Pages
 - **Datos de fútbol:** football-data.org v4 (competencia `WC`, temporada 2026).
   Proveedor intercambiable vía `FOOTBALL_PROVIDER` (`footballdata` | `apisports`).

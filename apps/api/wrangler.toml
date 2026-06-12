@@ -2,9 +2,10 @@ name = "polla-mundial"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
 
-# Cron trigger for every 30 minutes
+# Cron a la :01 y :31 de cada hora, saltando las horas 06-10 UTC completas
+# (= 1:01 AM a 5:59 AM hora Colombia, franja sin partidos: cero llamadas a la API).
 [triggers]
-crons = ["*/30 * * * *"]
+crons = ["1,31 0-5,11-23 * * *"]
 
 # D1 Database Binding
 [[d1_databases]]
