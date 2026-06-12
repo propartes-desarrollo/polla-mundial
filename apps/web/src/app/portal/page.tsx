@@ -254,7 +254,10 @@ export default function UserPortal() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {g.items.map((match) => {
             const locked = needsRecharge(match)
-            const editable = match.status === "SCHEDULED" && !locked
+            // Bloqueo por hora: el status en DB solo se actualiza con el sync (cron
+            // cada 30 min), así que un partido ya iniciado puede seguir "SCHEDULED".
+            const matchStarted = new Date(match.matchDate).getTime() <= Date.now()
+            const editable = match.status === "SCHEDULED" && !matchStarted && !locked
             const v = inputs[match.id] ?? { home: "", away: "" }
             return (
               <div key={match.id} className="bg-card border border-border rounded-lg overflow-hidden">
@@ -262,6 +265,8 @@ export default function UserPortal() {
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">{fmtDate(match.matchDate)}</span>
                   {locked && match.status === "SCHEDULED" ? (
                     <span className="text-[10px] font-black uppercase bg-accent text-accent-foreground px-2 py-0.5 rounded">⚡ Recarga</span>
+                  ) : match.status === "SCHEDULED" && matchStarted ? (
+                    <span className="text-[10px] font-black uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded">🔒 Bloqueado</span>
                   ) : (
                     <StatusChip status={match.status} />
                   )}

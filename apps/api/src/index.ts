@@ -453,10 +453,15 @@ app.post('/api/predictions', async (c) => {
     return c.json({ error: 'Marcador inválido' }, 400)
   }
 
-  const match = await c.env.DB.prepare('SELECT status, phase_id FROM matches WHERE id = ?')
-    .bind(matchId).first<{ status: string; phase_id: string }>()
+  const match = await c.env.DB.prepare('SELECT status, phase_id, match_date FROM matches WHERE id = ?')
+    .bind(matchId).first<{ status: string; phase_id: string; match_date: string }>()
   if (!match) return c.json({ error: 'Partido no encontrado' }, 404)
   if (match.status !== 'SCHEDULED') return c.json({ error: 'El partido ya está bloqueado' }, 400)
+  // El status solo se refresca con el sync (cron cada 30 min): un partido ya
+  // iniciado puede seguir "SCHEDULED" en la DB. Bloqueamos también por hora.
+  if (new Date(match.match_date).getTime() <= Date.now()) {
+    return c.json({ error: 'El partido ya comenzó: pronóstico bloqueado' }, 400)
+  }
 
   // Fases finales: solo puede pronosticar quien pagó la recarga.
   if (match.phase_id !== 'phase_groups' && user.role !== 'ADMIN') {
