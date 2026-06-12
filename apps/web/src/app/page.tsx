@@ -2,20 +2,24 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gradient-to-b from-background to-secondary">
-      <div className="z-10 max-w-5xl w-full items-center justify-center font-mono text-sm flex flex-col gap-6">
-        <h1 className="text-5xl font-extrabold tracking-tight text-primary drop-shadow-md text-center">
-          Polla Mundialista <span className="text-emerald-500">FIFA 2026</span>
+    <main className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center p-8 bg-[radial-gradient(ellipse_at_top,_hsl(357_92%_15%),_hsl(0_0%_4%)_60%)]">
+      <div className="max-w-4xl w-full flex flex-col items-center gap-6 text-center">
+        <span className="bg-primary text-primary-foreground headline text-sm px-3 py-1">
+          Copa Mundial de la FIFA 2026
+        </span>
+        <h1 className="headline text-5xl md:text-7xl leading-none">
+          Polla <span className="text-primary">Mundialista</span>
         </h1>
-        <p className="text-lg text-muted-foreground max-w-2xl text-center">
-          Plataforma privada de pronósticos deportivos. Regístrate con tu enlace de invitación y compite por la bolsa de premios.
+        <p className="text-lg text-muted-foreground max-w-2xl">
+          Plataforma privada de pronósticos deportivos. Regístrate con tu enlace de
+          invitación, pronostica cada partido y compite por la bolsa de premios.
         </p>
-        <div className="flex gap-4 mt-8">
-          <Link href="/login" className="px-6 py-3 rounded-md bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
-            Iniciar Sesión
+        <div className="flex flex-wrap gap-4 mt-6 justify-center">
+          <Link href="/login" className="px-8 py-3 rounded bg-primary text-primary-foreground headline text-lg hover:bg-primary/90 transition-colors">
+            Iniciar sesión
           </Link>
-          <Link href="/ranking" className="px-6 py-3 rounded-md bg-secondary text-secondary-foreground font-semibold hover:bg-secondary/80 transition-colors border border-border">
-            Ver Ranking Público
+          <Link href="/ranking" className="px-8 py-3 rounded bg-secondary text-secondary-foreground headline text-lg border border-border hover:bg-secondary/80 transition-colors">
+            Ver posiciones
           </Link>
         </div>
       </div>

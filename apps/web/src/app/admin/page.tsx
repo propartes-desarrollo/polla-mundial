@@ -4,8 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, getUser, logout } from "@/lib/api"
 
-interface Stats { participants: number; totalCollected: number; prizePool: number }
 interface Phase { id: string; name: string; status: string }
+interface Prize { label: string; amount: number }
+interface PrizeInfo { participants: number; totalCollected: number; prizes: Prize[] }
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: "EN JUEGO",
@@ -13,20 +14,22 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: "PENDIENTE",
 }
 
+const fmtCOP = (n: number) => `$${n.toLocaleString("es-CO")}`
+
 export default function AdminDashboard() {
   const router = useRouter()
-  const [stats, setStats] = useState<Stats | null>(null)
+  const [prizeInfo, setPrizeInfo] = useState<PrizeInfo | null>(null)
   const [phases, setPhases] = useState<Phase[]>([])
   const [error, setError] = useState("")
   const [busy, setBusy] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
 
   async function load() {
-    const [s, p] = await Promise.all([
-      apiFetch<Stats>("/api/admin/stats"),
+    const [pi, p] = await Promise.all([
+      apiFetch<PrizeInfo>("/api/prizes"),
       apiFetch<Phase[]>("/api/admin/phases"),
     ])
-    setStats(s)
+    setPrizeInfo(pi)
     setPhases(p)
   }
 
@@ -56,6 +59,15 @@ export default function AdminDashboard() {
     } catch (e) { setError((e as Error).message) } finally { setBusy("") }
   }
 
+  async function handleLockSpecials() {
+    if (!confirm("¿Bloquear los pronósticos especiales de TODOS los participantes? Esta acción no se puede deshacer desde la app.")) return
+    setBusy("lock"); setError("")
+    try {
+      await apiFetch("/api/admin/lock-specials", { method: "POST" })
+      alert("Pronósticos especiales bloqueados.")
+    } catch (e) { setError((e as Error).message) } finally { setBusy("") }
+  }
+
   async function cyclePhase(phase: Phase) {
     const next = phase.status === "PENDING" ? "OPEN" : phase.status === "OPEN" ? "CLOSED" : "PENDING"
     try {
@@ -65,65 +77,86 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container mx-auto p-8 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-primary">Panel Administrativo</h1>
-        <button onClick={() => { logout(); router.replace("/login") }} className="text-sm text-muted-foreground hover:text-primary">
+    <div className="container mx-auto p-4 md:p-8 min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="headline text-3xl md:text-4xl">Panel <span className="text-primary">Admin</span></h1>
+        <button onClick={() => { logout(); router.replace("/login") }} className="text-xs font-bold uppercase text-muted-foreground hover:text-primary">
           Cerrar sesión
         </button>
       </div>
 
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/40 text-destructive-foreground text-sm rounded-md p-3 mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="bg-primary/15 border border-primary text-sm rounded p-3 mb-6 font-medium">{error}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-card border border-border p-6 rounded-lg shadow-sm">
-          <p className="text-sm text-muted-foreground uppercase tracking-wide">Participantes Activos</p>
-          <p className="text-4xl font-extrabold text-primary mt-2">{stats?.participants ?? "—"}</p>
+      {/* Métricas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="bg-card border border-border p-5 rounded-lg">
+          <p className="text-[11px] uppercase font-bold text-muted-foreground tracking-wide">Participantes activos</p>
+          <p className="text-4xl font-black text-foreground mt-1">{prizeInfo?.participants ?? "—"}</p>
         </div>
-        <div className="bg-card border border-border p-6 rounded-lg shadow-sm">
-          <p className="text-sm text-muted-foreground uppercase tracking-wide">Recaudo Total</p>
-          <p className="text-4xl font-extrabold text-primary mt-2">${(stats?.totalCollected ?? 0).toLocaleString("es-CO")}</p>
-        </div>
-        <div className="bg-emerald-950/30 border border-emerald-900/50 p-6 rounded-lg shadow-sm">
-          <p className="text-sm text-emerald-500 uppercase tracking-wide">Bolsa de Premios (95%)</p>
-          <p className="text-4xl font-extrabold text-emerald-400 mt-2">${(stats?.prizePool ?? 0).toLocaleString("es-CO")}</p>
+        <div className="bg-card border border-border p-5 rounded-lg">
+          <p className="text-[11px] uppercase font-bold text-muted-foreground tracking-wide">Recaudo total</p>
+          <p className="text-4xl font-black text-foreground mt-1">{fmtCOP(prizeInfo?.totalCollected ?? 0)}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-card border border-border p-6 rounded-lg shadow-sm flex flex-col gap-4">
-          <h2 className="text-xl font-bold border-b border-border pb-2">Acciones Rápidas</h2>
-          <button onClick={handleSync} disabled={busy === "sync"} className="bg-primary text-primary-foreground py-2 px-4 rounded-md font-medium hover:bg-primary/90 disabled:opacity-50">
-            {busy === "sync" ? "Sincronizando..." : "Sincronizar API (Manual)"}
+      {/* Desglose de premios */}
+      <section className="mb-8">
+        <h2 className="section-bar headline text-xl mb-4">Premios</h2>
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <tbody>
+              {(prizeInfo?.prizes ?? []).map((p, i) => (
+                <tr key={p.label} className={i % 2 ? "bg-black/20" : ""}>
+                  <td className="px-4 py-3 font-medium">{p.label}</td>
+                  <td className="px-4 py-3 text-right font-black text-accent whitespace-nowrap">{fmtCOP(p.amount)}</td>
+                </tr>
+              ))}
+              {!prizeInfo?.prizes?.length && (
+                <tr><td className="px-4 py-6 text-center text-muted-foreground">Sin participantes aún — los premios se calculan según el recaudo.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Acciones */}
+        <div className="bg-card border border-border p-5 rounded-lg flex flex-col gap-3">
+          <h2 className="headline text-lg border-b border-border pb-2">Acciones rápidas</h2>
+          <button onClick={handleSync} disabled={busy === "sync"}
+            className="bg-primary text-primary-foreground py-2.5 px-4 rounded font-black uppercase text-sm hover:bg-primary/90 disabled:opacity-50">
+            {busy === "sync" ? "Sincronizando..." : "Sincronizar resultados"}
           </button>
-          <button onClick={handleInvitation} disabled={busy === "invite"} className="bg-secondary text-secondary-foreground py-2 px-4 rounded-md font-medium hover:bg-secondary/80 disabled:opacity-50">
-            {busy === "invite" ? "Generando..." : "Generar Enlace de Invitación"}
+          <button onClick={handleInvitation} disabled={busy === "invite"}
+            className="bg-secondary text-secondary-foreground py-2.5 px-4 rounded font-bold uppercase text-sm hover:bg-secondary/80 disabled:opacity-50">
+            {busy === "invite" ? "Generando..." : "Generar enlace de invitación"}
+          </button>
+          <button onClick={handleLockSpecials} disabled={busy === "lock"}
+            className="bg-accent text-accent-foreground py-2.5 px-4 rounded font-bold uppercase text-sm hover:bg-accent/80 disabled:opacity-50">
+            {busy === "lock" ? "Bloqueando..." : "🔒 Bloquear pronósticos especiales"}
           </button>
           {inviteUrl && (
-            <div className="bg-background border border-input rounded-md p-3 text-sm break-all">
-              <p className="text-muted-foreground mb-1">Comparte este enlace:</p>
-              <a href={inviteUrl} className="text-primary hover:underline">{inviteUrl}</a>
+            <div className="bg-input border border-border rounded p-3 text-sm break-all">
+              <p className="text-muted-foreground mb-1 text-xs uppercase font-bold">Comparte este enlace:</p>
+              <a href={inviteUrl} className="text-accent hover:underline">{inviteUrl}</a>
             </div>
           )}
         </div>
 
-        <div className="bg-card border border-border p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-bold border-b border-border pb-2 mb-4">Gestión de Fases</h2>
-          <ul className="space-y-4">
+        {/* Fases */}
+        <div className="bg-card border border-border p-5 rounded-lg">
+          <h2 className="headline text-lg border-b border-border pb-2 mb-4">Gestión de fases</h2>
+          <ul className="space-y-3">
             {phases.map((phase) => (
               <li key={phase.id} className="flex justify-between items-center">
-                <span>{phase.name}</span>
+                <span className="font-medium">{phase.name}</span>
                 <button
                   onClick={() => cyclePhase(phase)}
                   title="Click para cambiar estado"
                   className={
                     phase.status === "OPEN"
-                      ? "text-emerald-500 text-sm font-bold bg-emerald-500/10 px-3 py-1 rounded-full hover:bg-emerald-500/20"
-                      : "text-muted-foreground text-sm font-bold bg-muted/20 px-3 py-1 rounded-full hover:bg-muted/40"
+                      ? "text-emerald-400 text-xs font-black uppercase bg-emerald-500/10 px-3 py-1 rounded-full hover:bg-emerald-500/20"
+                      : "text-muted-foreground text-xs font-black uppercase bg-muted/30 px-3 py-1 rounded-full hover:bg-muted/50"
                   }
                 >
                   {STATUS_LABEL[phase.status] ?? phase.status}

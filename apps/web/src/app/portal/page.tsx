@@ -15,9 +15,20 @@ interface Match {
   phaseName: string
   homeName: string
   awayName: string
+  homeFlag: string | null
+  awayFlag: string | null
   predictedHome: number | null
   predictedAway: number | null
   predictionPoints: number | null
+}
+
+interface Team { id: string; name: string; flagUrl: string | null }
+
+interface Specials {
+  championTeamId: string | null
+  runnerUpTeamId: string | null
+  topScorerName: string | null
+  locked: number
 }
 
 function fmtDate(iso: string): string {
@@ -30,21 +41,57 @@ function fmtDate(iso: string): string {
   }
 }
 
+function Flag({ src, name, size = 28 }: { src: string | null; name: string; size?: number }) {
+  if (!src) return <span className="inline-block rounded-sm bg-muted" style={{ width: size, height: size * 0.7 }} />
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <img
+      src={src}
+      alt={name}
+      width={size}
+      height={size * 0.7}
+      className="rounded-sm object-cover border border-border shadow-sm"
+      style={{ width: size, height: size * 0.7 }}
+    />
+  )
+}
+
+function StatusChip({ status }: { status: Match["status"] }) {
+  if (status === "IN_PLAY")
+    return <span className="text-[10px] font-black uppercase bg-primary text-primary-foreground px-2 py-0.5 rounded animate-pulse">En vivo</span>
+  if (status === "FINISHED")
+    return <span className="text-[10px] font-black uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded">Final</span>
+  return <span className="text-[10px] font-black uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">Abierto</span>
+}
+
 export default function UserPortal() {
   const router = useRouter()
   const [me, setMe] = useState<Me | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [specials, setSpecials] = useState<Specials | null>(null)
+  const [champion, setChampion] = useState("")
+  const [runnerUp, setRunnerUp] = useState("")
+  const [topScorer, setTopScorer] = useState("")
   const [inputs, setInputs] = useState<Record<string, { home: string; away: string }>>({})
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [savingId, setSavingId] = useState("")
 
   async function load() {
-    const [m, list] = await Promise.all([
+    const [m, list, teamList, sp] = await Promise.all([
       apiFetch<Me>("/api/me"),
       apiFetch<Match[]>("/api/matches"),
+      apiFetch<Team[]>("/api/teams"),
+      apiFetch<Specials | null>("/api/special-predictions"),
     ])
     setMe(m)
     setMatches(list)
+    setTeams(teamList)
+    setSpecials(sp)
+    setChampion(sp?.championTeamId ?? "")
+    setRunnerUp(sp?.runnerUpTeamId ?? "")
+    setTopScorer(sp?.topScorerName ?? "")
     const seed: Record<string, { home: string; away: string }> = {}
     for (const match of list) {
       seed[match.id] = {
@@ -80,89 +127,166 @@ export default function UserPortal() {
     } catch (e) { setError((e as Error).message) } finally { setSavingId("") }
   }
 
+  async function saveSpecials() {
+    setSavingId("specials"); setError(""); setNotice("")
+    try {
+      await apiFetch("/api/special-predictions", {
+        method: "POST",
+        body: JSON.stringify({ championTeamId: champion, runnerUpTeamId: runnerUp, topScorerName: topScorer }),
+      })
+      setNotice("Pronósticos especiales guardados ✓")
+      await load()
+    } catch (e) { setError((e as Error).message) } finally { setSavingId("") }
+  }
+
+  const specialsLocked = !!specials?.locked
+  const teamById = (id: string) => teams.find((t) => t.id === id)
+
   return (
     <div className="container mx-auto p-4 md:p-8 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-primary">Mis Pronósticos</h1>
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Puntos Actuales</p>
-            <p className="text-2xl font-bold text-emerald-400">{me?.points ?? 0} pts</p>
+      {/* Marcador superior del usuario */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="headline text-3xl md:text-4xl">Mi <span className="text-primary">Polla</span></h1>
+        <div className="flex items-center gap-4">
+          <div className="bg-card border border-border rounded px-4 py-2 text-right">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Mis puntos</p>
+            <p className="text-2xl font-black text-accent leading-none">{me?.points ?? 0}</p>
           </div>
-          <button onClick={() => { logout(); router.replace("/login") }} className="text-sm text-muted-foreground hover:text-primary">
+          <button onClick={() => { logout(); router.replace("/login") }} className="text-xs font-bold uppercase text-muted-foreground hover:text-primary">
             Salir
           </button>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/40 text-destructive-foreground text-sm rounded-md p-3 mb-6">
-          {error}
+      {error && <div className="bg-primary/15 border border-primary text-sm rounded p-3 mb-4 font-medium">{error}</div>}
+      {notice && <div className="bg-emerald-600/15 border border-emerald-600 text-sm rounded p-3 mb-4 font-medium">{notice}</div>}
+
+      {/* Pronósticos especiales */}
+      <section className="mb-10">
+        <h2 className="section-bar headline text-xl mb-4">Pronósticos especiales</h2>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2 mb-2">
+                🏆 Campeón del Mundial
+              </label>
+              <div className="flex items-center gap-2">
+                <Flag src={teamById(champion)?.flagUrl ?? null} name="campeón" />
+                <select value={champion} onChange={(e) => setChampion(e.target.value)} disabled={specialsLocked}
+                  className="flex-1 bg-input border border-border rounded px-2 py-2 text-sm disabled:opacity-60">
+                  <option value="">— Elige selección —</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2 mb-2">
+                🥈 Subcampeón
+              </label>
+              <div className="flex items-center gap-2">
+                <Flag src={teamById(runnerUp)?.flagUrl ?? null} name="subcampeón" />
+                <select value={runnerUp} onChange={(e) => setRunnerUp(e.target.value)} disabled={specialsLocked}
+                  className="flex-1 bg-input border border-border rounded px-2 py-2 text-sm disabled:opacity-60">
+                  <option value="">— Elige selección —</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2 mb-2">
+                ⚽ Goleador del Mundial
+              </label>
+              <input value={topScorer} onChange={(e) => setTopScorer(e.target.value)} disabled={specialsLocked}
+                placeholder="Nombre del jugador"
+                className="w-full bg-input border border-border rounded px-3 py-2 text-sm disabled:opacity-60" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {specialsLocked
+                ? "🔒 Tus pronósticos especiales están bloqueados."
+                : "Puntos: Campeón 30 · Subcampeón 15 · Goleador 20"}
+            </p>
+            {!specialsLocked && (
+              <button onClick={saveSpecials} disabled={savingId === "specials"}
+                className="bg-primary text-primary-foreground font-black uppercase text-sm px-5 py-2 rounded hover:bg-primary/90 disabled:opacity-50">
+                {savingId === "specials" ? "Guardando..." : "Guardar especiales"}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+      </section>
 
-      {matches.length === 0 && (
-        <p className="text-muted-foreground">No hay partidos disponibles todavía. Vuelve cuando el calendario esté cargado.</p>
-      )}
+      {/* Partidos */}
+      <section>
+        <h2 className="section-bar headline text-xl mb-4">Partidos</h2>
+        {matches.length === 0 && (
+          <p className="text-muted-foreground">No hay partidos disponibles todavía.</p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {matches.map((match) => {
+            const editable = match.status === "SCHEDULED"
+            const v = inputs[match.id] ?? { home: "", away: "" }
+            return (
+              <div key={match.id} className="bg-card border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between bg-black/40 px-3 py-1.5 border-b border-border">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">{fmtDate(match.matchDate)}</span>
+                  <StatusChip status={match.status} />
+                </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {matches.map((match) => {
-          const editable = match.status === "SCHEDULED"
-          const v = inputs[match.id] ?? { home: "", away: "" }
-          return (
-            <div key={match.id} className={`bg-card border border-border p-4 rounded-lg flex flex-col gap-4 relative overflow-hidden ${editable ? "" : "opacity-80"}`}>
-              <div className={`absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg ${editable ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive-foreground"}`}>
-                {editable ? "ABIERTO" : "BLOQUEADO"}
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">{match.phaseName} · {fmtDate(match.matchDate)}</p>
-
-              <div className="flex justify-between items-center mt-2">
-                <span className="font-bold text-sm flex-1 text-center">{match.homeName}</span>
-
-                {editable ? (
-                  <div className="flex gap-2 items-center">
-                    <input type="number" min={0} max={20} value={v.home}
-                      onChange={(e) => setInput(match.id, "home", e.target.value)}
-                      className="w-12 h-12 bg-background border border-input rounded-md text-center text-xl font-bold" placeholder="-" />
-                    <span className="text-muted-foreground font-bold">-</span>
-                    <input type="number" min={0} max={20} value={v.away}
-                      onChange={(e) => setInput(match.id, "away", e.target.value)}
-                      className="w-12 h-12 bg-background border border-input rounded-md text-center text-xl font-bold" placeholder="-" />
+                <div className="p-3 space-y-2">
+                  {/* Fila equipo local */}
+                  <div className="flex items-center gap-2">
+                    <Flag src={match.homeFlag} name={match.homeName} />
+                    <span className="font-bold text-sm uppercase flex-1 truncate">{match.homeName}</span>
+                    {editable ? (
+                      <input type="number" min={0} max={20} value={v.home}
+                        onChange={(e) => setInput(match.id, "home", e.target.value)}
+                        className="w-12 h-10 bg-input border border-border rounded text-center text-lg font-black" placeholder="-" />
+                    ) : (
+                      <span className="w-12 text-center text-2xl font-black">{match.homeScore ?? "-"}</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex gap-3 items-center">
-                    <span className="text-2xl font-bold text-primary">{match.homeScore ?? "-"}</span>
-                    <span className="text-muted-foreground font-bold">-</span>
-                    <span className="text-2xl font-bold text-primary">{match.awayScore ?? "-"}</span>
+                  {/* Fila equipo visitante */}
+                  <div className="flex items-center gap-2">
+                    <Flag src={match.awayFlag} name={match.awayName} />
+                    <span className="font-bold text-sm uppercase flex-1 truncate">{match.awayName}</span>
+                    {editable ? (
+                      <input type="number" min={0} max={20} value={v.away}
+                        onChange={(e) => setInput(match.id, "away", e.target.value)}
+                        className="w-12 h-10 bg-input border border-border rounded text-center text-lg font-black" placeholder="-" />
+                    ) : (
+                      <span className="w-12 text-center text-2xl font-black">{match.awayScore ?? "-"}</span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                <span className="font-bold text-sm flex-1 text-center">{match.awayName}</span>
-              </div>
-
-              {editable ? (
-                <button onClick={() => save(match)} disabled={savingId === match.id}
-                  className="w-full bg-primary text-primary-foreground py-2 mt-2 rounded-md font-bold hover:bg-primary/90 disabled:opacity-50">
-                  {savingId === match.id ? "Guardando..." : "Guardar Pronóstico"}
-                </button>
-              ) : (
-                <div className="w-full text-center py-2 mt-2 border-t border-border text-sm font-bold">
-                  {match.predictedHome != null ? (
-                    <span className="text-muted-foreground">
-                      Tu pronóstico: {match.predictedHome}-{match.predictedAway}
-                      {match.status === "FINISHED" && (
-                        <span className="text-emerald-400"> · +{match.predictionPoints ?? 0} pts</span>
-                      )}
-                    </span>
+                <div className="px-3 pb-3">
+                  {editable ? (
+                    <button onClick={() => save(match)} disabled={savingId === match.id}
+                      className="w-full bg-primary text-primary-foreground py-2 rounded font-black uppercase text-sm hover:bg-primary/90 disabled:opacity-50">
+                      {savingId === match.id ? "Guardando..." : "Guardar"}
+                    </button>
                   ) : (
-                    <span className="text-muted-foreground">Sin pronóstico</span>
+                    <div className="text-center text-xs border-t border-border pt-2">
+                      {match.predictedHome != null ? (
+                        <span className="text-muted-foreground font-medium">
+                          Mi pronóstico: <b>{match.predictedHome}-{match.predictedAway}</b>
+                          {match.status === "FINISHED" && (
+                            <span className="text-accent font-black"> · +{match.predictionPoints ?? 0} pts</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Sin pronóstico</span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

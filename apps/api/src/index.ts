@@ -4,6 +4,8 @@ import { ApiSportsFootballProvider } from './providers/ApiSportsProvider'
 import { FootballDataProvider } from './providers/FootballDataProvider'
 import { FootballProvider } from './providers/football'
 import { calculatePoints, PhaseType } from './scoring'
+import { calculatePrizeDistribution } from './prizes'
+import { translateTeamName } from './teamNames'
 import { createToken, verifyToken, hashPassword, verifyPassword, JwtUser } from './auth'
 
 type Bindings = {
@@ -53,6 +55,8 @@ const requireAdmin = async (c: any, next: any) => {
 app.use('/api/me', requireAuth)
 app.use('/api/matches', requireAuth)
 app.use('/api/predictions', requireAuth)
+app.use('/api/teams', requireAuth)
+app.use('/api/special-predictions', requireAuth)
 app.use('/api/admin/*', requireAuth, requireAdmin)
 
 // --- Football provider helpers ---
@@ -96,7 +100,7 @@ async function syncTournamentData(env: Bindings) {
     await env.DB.prepare(
       `INSERT INTO teams (id, name, group_name, flag_url) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, group_name = excluded.group_name, flag_url = excluded.flag_url`
-    ).bind(t.id, t.name, t.group, t.flagUrl).run()
+    ).bind(t.id, translateTeamName(t.name), t.group, t.flagUrl).run()
   }
 
   const matches = await provider.getMatches()
@@ -302,7 +306,84 @@ app.post('/api/predictions', async (c) => {
   return c.json({ success: true })
 })
 
+// --- Teams (para selects de pronósticos especiales) ---
+
+app.get('/api/teams', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, name, flag_url AS flagUrl FROM teams ORDER BY name'
+  ).all()
+  return c.json(results)
+})
+
+// --- Pronósticos especiales (campeón, subcampeón, goleador) ---
+
+app.get('/api/special-predictions', async (c) => {
+  const user = c.get('user')
+  const row = await c.env.DB.prepare(
+    `SELECT sp.champion_team_id AS championTeamId,
+            sp.runner_up_team_id AS runnerUpTeamId,
+            sp.top_scorer_name AS topScorerName,
+            sp.locked,
+            tc.name AS championName, tc.flag_url AS championFlag,
+            tr.name AS runnerUpName, tr.flag_url AS runnerUpFlag
+     FROM special_predictions sp
+     LEFT JOIN teams tc ON tc.id = sp.champion_team_id
+     LEFT JOIN teams tr ON tr.id = sp.runner_up_team_id
+     WHERE sp.user_id = ?`
+  ).bind(user.id).first()
+  return c.json(row ?? null)
+})
+
+app.post('/api/special-predictions', async (c) => {
+  const user = c.get('user')
+  const { championTeamId, runnerUpTeamId, topScorerName } =
+    await c.req.json<{ championTeamId: string; runnerUpTeamId: string; topScorerName: string }>()
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id, locked FROM special_predictions WHERE user_id = ?'
+  ).bind(user.id).first<{ id: string; locked: number }>()
+  if (existing?.locked) return c.json({ error: 'Tus pronósticos especiales ya están bloqueados' }, 400)
+
+  const id = existing?.id ?? crypto.randomUUID()
+  await c.env.DB.prepare(
+    `INSERT INTO special_predictions (id, user_id, champion_team_id, runner_up_team_id, top_scorer_name, locked)
+     VALUES (?, ?, ?, ?, ?, 0)
+     ON CONFLICT(user_id) DO UPDATE SET
+       champion_team_id = excluded.champion_team_id,
+       runner_up_team_id = excluded.runner_up_team_id,
+       top_scorer_name = excluded.top_scorer_name`
+  ).bind(id, user.id, championTeamId || null, runnerUpTeamId || null, topScorerName || null).run()
+
+  return c.json({ success: true })
+})
+
+// --- Premios (público: desglose en dinero según participantes) ---
+
+app.get('/api/prizes', async (c) => {
+  const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
+    .first<{ n: number }>()
+  const dist = calculatePrizeDistribution(row?.n ?? 0)
+  return c.json({
+    participants: row?.n ?? 0,
+    totalCollected: dist.totalCollected,
+    prizes: [
+      { label: 'Campeón de la polla (1er puesto)', amount: Math.round(dist.prizes.firstPlace) },
+      { label: 'Subcampeón (2do puesto)', amount: Math.round(dist.prizes.secondPlace) },
+      { label: 'Tercer puesto', amount: Math.round(dist.prizes.thirdPlace) },
+      { label: 'Más marcadores exactos', amount: Math.round(dist.prizes.mostExactScores) },
+      { label: 'Más ganadores acertados', amount: Math.round(dist.prizes.mostCorrectWinners) },
+      { label: 'Acertar el campeón del Mundial', amount: Math.round(dist.prizes.correctChampion) },
+      { label: 'Acertar el goleador del Mundial', amount: Math.round(dist.prizes.correctTopScorer) }
+    ]
+  })
+})
+
 // --- Admin ---
+
+app.post('/api/admin/lock-specials', async (c) => {
+  await c.env.DB.prepare('UPDATE special_predictions SET locked = 1').run()
+  return c.json({ success: true })
+})
 
 app.get('/api/admin/stats', async (c) => {
   const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'USER'")
