@@ -15,7 +15,7 @@ migrations_dir = "migrations"
 
 # Non-secret config (safe to commit)
 [vars]
-FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = "https://polla-mundial-bf4.pages.dev"
 # Proveedor de datos: "apisports" (api-sports.io) o "footballdata" (football-data.org)
 FOOTBALL_PROVIDER = "footballdata"
 WORLD_CUP_LEAGUE_ID = "1"
