@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
+import NavAuth from "@/components/NavAuth";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="dark">
-      <body className={inter.className}>
+      <body className={`${inter.className} flex flex-col min-h-screen`}>
         <header className="sticky top-0 z-50 bg-black border-b-4 border-primary">
           <div className="container mx-auto px-4 h-14 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3">
@@ -33,15 +34,18 @@ export default function RootLayout({
                 Posiciones
               </Link>
               <Link href="/portal" className="px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-900 rounded">
-                Mi Polla
+                Mi Apuesta
               </Link>
-              <Link href="/login" className="ml-2 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">
-                Entrar
-              </Link>
+              <NavAuth />
             </nav>
           </div>
         </header>
-        {children}
+        <main className="flex-1">{children}</main>
+        <footer className="border-t-4 border-primary bg-black py-6 text-center">
+          <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">
+            ⚽ Polla hecha por el <span className="text-primary">Master Faiver</span>
+          </p>
+        </footer>
       </body>
     </html>
   );

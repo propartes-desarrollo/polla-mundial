@@ -146,7 +146,7 @@ export default function UserPortal() {
     <div className="container mx-auto p-4 md:p-8 min-h-screen">
       {/* Marcador superior del usuario */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="headline text-3xl md:text-4xl">Mi <span className="text-primary">Polla</span></h1>
+        <h1 className="headline text-3xl md:text-4xl">Mi <span className="text-primary">Apuesta</span></h1>
         <div className="flex items-center gap-4">
           <div className="bg-card border border-border rounded px-4 py-2 text-right">
             <p className="text-[10px] uppercase font-bold text-muted-foreground">Mis puntos</p>
@@ -201,7 +201,7 @@ export default function UserPortal() {
                 className="w-full bg-input border border-border rounded px-3 py-2 text-sm disabled:opacity-60" />
             </div>
           </div>
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {specialsLocked
                 ? "🔒 Tus pronósticos especiales están bloqueados."
@@ -209,7 +209,7 @@ export default function UserPortal() {
             </p>
             {!specialsLocked && (
               <button onClick={saveSpecials} disabled={savingId === "specials"}
-                className="bg-primary text-primary-foreground font-black uppercase text-sm px-5 py-2 rounded hover:bg-primary/90 disabled:opacity-50">
+                className="w-full sm:w-auto shrink-0 bg-primary text-primary-foreground font-black uppercase text-sm px-5 py-2.5 rounded hover:bg-primary/90 disabled:opacity-50">
                 {savingId === "specials" ? "Guardando..." : "Guardar especiales"}
               </button>
             )}
