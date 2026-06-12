@@ -129,7 +129,7 @@ mundial/                      (monorepo npm workspaces, Node 20)
 
 ### Stack
 - **Backend:** Hono sobre Cloudflare Workers · D1 (SQLite) · cron a la :01 y :31
-  de cada hora (pausa 1:01–5:59 AM Colombia, franja sin partidos)
+  de cada hora (pausa nocturna: última corrida 1:31 AM, primera 10:01 AM Colombia)
 - **Frontend:** Next.js 15 estático · TailwindCSS (tema estilo ESPN) · Cloudflare Pages
 - **Datos de fútbol:** football-data.org v4 (competencia `WC`, temporada 2026).
   Proveedor intercambiable vía `FOOTBALL_PROVIDER` (`footballdata` | `apisports`).

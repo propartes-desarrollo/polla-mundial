@@ -2,10 +2,11 @@ name = "polla-mundial"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
 
-# Cron a la :01 y :31 de cada hora, saltando las horas 06-10 UTC completas
-# (= 1:01 AM a 5:59 AM hora Colombia, franja sin partidos: cero llamadas a la API).
+# Cron a la :01 y :31 de cada hora, saltando las horas 07-14 UTC completas:
+# última corrida 1:31 AM y primera 10:01 AM hora Colombia (franja sin partidos,
+# cero llamadas a la API del proveedor).
 [triggers]
-crons = ["1,31 0-5,11-23 * * *"]
+crons = ["1,31 0-6,15-23 * * *"]
 
 # D1 Database Binding
 [[d1_databases]]

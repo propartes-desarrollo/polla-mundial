@@ -140,5 +140,6 @@ npx tsx src/scoring.test.ts                    # tests de puntuación
 | POST | `/api/admin/sync` | admin |
 | GET | `/api/football/status` | público (diagnóstico del proveedor, no toca BD) |
 
-El **cron** ejecuta el mismo sync automáticamente a la :01 y :31 de cada hora,
-excepto entre la 1:01 AM y las 5:59 AM hora Colombia (06-10 UTC, franja sin partidos).
+El **cron** ejecuta el mismo sync automáticamente a la :01 y :31 de cada hora;
+última corrida nocturna 1:31 AM y primera de la mañana 10:01 AM hora Colombia
+(se saltan las horas 07-14 UTC, franja sin partidos).
