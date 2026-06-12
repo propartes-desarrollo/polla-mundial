@@ -11,9 +11,9 @@ export default function Home() {
           Polla <span className="text-primary">Mundialista</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          🎉 ¡Diviértete y gana dinero con la polla! La polla del Mundial 2026 se juega
-          entre amigos y colegas. No necesitas saber de fútbol: a veces la suerte
-          también ayuda… ⚽🍀
+          ¡Diviértete y gana dinero con la polla! La polla del Mundial 2026 entre
+          amigos y colegas, sin árbitro y sin VAR. No necesitas saber de fútbol:
+          a veces la suerte también ayuda
         </p>
         <div className="flex flex-wrap gap-4 mt-6 justify-center">
           <Link href="/login" className="px-8 py-3 rounded bg-primary text-primary-foreground headline text-lg hover:bg-primary/90 transition-colors">
