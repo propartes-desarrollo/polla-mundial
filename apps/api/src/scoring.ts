@@ -9,6 +9,7 @@ export interface PointsBreakdown {
   correctWinner: number
   goalDifference: number
   exactScore: number
+  teamGoals: number // solo fase de grupos: +1 por cada equipo cuyos goles aciertes
   total: number
 }
 
@@ -21,6 +22,7 @@ export function calculatePoints(
     correctWinner: 0,
     goalDifference: 0,
     exactScore: 0,
+    teamGoals: 0,
     total: 0
   }
 
@@ -52,6 +54,10 @@ export function calculatePoints(
       if (correctWinner) breakdown.correctWinner = 3
       if (correctDiff && !predDraw) breakdown.goalDifference = 2 // In draws, correct winner already covers it, but example says "3+2+5". Wait, if draw 1-1 and actual is 1-1, correct diff is 0=0.
       if (exactScore) breakdown.exactScore = 5
+      // "Puntería parcial": +1 por cada equipo cuyo número de goles aciertes,
+      // aunque falles el ganador (ej: real 1-1, pronóstico 2-1 => +1 por el visitante).
+      if (prediction.homeScore === actual.homeScore) breakdown.teamGoals += 1
+      if (prediction.awayScore === actual.awayScore) breakdown.teamGoals += 1
       break
     case 'phase_16':
     case 'phase_8':
@@ -73,7 +79,7 @@ export function calculatePoints(
       break
   }
 
-  breakdown.total = breakdown.correctWinner + breakdown.goalDifference + breakdown.exactScore
+  breakdown.total = breakdown.correctWinner + breakdown.goalDifference + breakdown.exactScore + breakdown.teamGoals
 
   return breakdown
 }

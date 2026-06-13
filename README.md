@@ -39,13 +39,17 @@ quedan congelados para todo el torneo.
 Cada partido se pronostica con marcador exacto **mientras esté programado**;
 al iniciar el partido se bloquea automáticamente.
 
-| Fase | Ganador | Dif. de goles | Marcador exacto |
-|---|---|---|---|
-| Grupos | 3 | +2 | 5 |
-| Dieciseisavos / Octavos | 5 | — | 8 |
-| Cuartos | 7 | — | 10 |
-| Semifinales / 3er puesto | 10 | — | 15 |
-| Final | 15 | — | 25 |
+| Fase | Ganador | Dif. de goles | Goles por equipo | Marcador exacto |
+|---|---|---|---|---|
+| Grupos | 3 | +2 | +1 c/u | 5 |
+| Dieciseisavos / Octavos | 5 | — | — | 8 |
+| Cuartos | 7 | — | — | 10 |
+| Semifinales / 3er puesto | 10 | — | — | 15 |
+| Final | 15 | — | — | 25 |
+
+**Puntería parcial (solo grupos):** +1 punto por cada equipo cuyo número de goles
+aciertes aunque falles el resultado (real 1-1, pronóstico 2-1 → +1 por el visitante).
+En eliminatorias no aplica.
 
 **¿Cuándo aparecen las fases finales?** Automáticamente. La API de fútbol publica
 los cruces de cada fase eliminatoria apenas se definen (al cerrar grupos se conocen

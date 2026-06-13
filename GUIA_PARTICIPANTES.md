@@ -52,17 +52,23 @@ banderas y la fecha/hora de Colombia.
 
 ### ¿Cuántos puntos gano por partido?
 
-| Fase | Acertar ganador (o empate) | Acertar diferencia de goles | Marcador exacto |
-|---|---|---|---|
-| Fase de grupos | 3 | +2 | 5 |
-| Dieciseisavos y Octavos | 5 | — | 8 |
-| Cuartos de final | 7 | — | 10 |
-| Semifinales y 3er puesto | 10 | — | 15 |
-| **Final** | **15** | — | **25** |
+| Fase | Acertar ganador (o empate) | Acertar diferencia de goles | Acertar goles de un equipo | Marcador exacto |
+|---|---|---|---|---|
+| Fase de grupos | 3 | +2 | +1 c/u | 5 |
+| Dieciseisavos y Octavos | 5 | — | — | 8 |
+| Cuartos de final | 7 | — | — | 10 |
+| Semifinales y 3er puesto | 10 | — | — | 15 |
+| **Final** | **15** | — | — | **25** |
 
 > El marcador exacto **incluye** los puntos de ganador: ej. en grupos, si aciertas
-> el marcador sumas 3 + 2 + 5 = **10 puntos**. Las fases finales valen más:
+> el marcador sumas 3 + 2 + 5 + 2 = **12 puntos**. Las fases finales valen más:
 > ¡la final puede darte hasta 40!
+
+🍀 **Puntería parcial (solo fase de grupos):** ganas **+1 punto por cada equipo**
+cuyo número de goles aciertes, ¡aunque falles el resultado! Ej: el partido queda
+1-1 y tú pronosticaste 2-1 → sumas **1 punto** por los goles del visitante. Aquí
+hasta la suerte cuenta: no necesitas saber de fútbol para sumar. En las fases
+finales esta regla no aplica.
 
 ## 5. La RECARGA: tu apuesta para las fases finales 💪
 
@@ -168,11 +174,13 @@ Con ella juegas TODA la fase de grupos + tus pronósticos especiales.
 5️⃣ *⚡ RECARGA para las fases finales:* al terminar la fase de grupos, pagas una recarga de $30.000 (un solo pago) y quedas habilitado para pronosticar TODAS las eliminatorias, de 16avos a la FINAL. Quien no recarga conserva sus puntos de grupos pero deja de sumar. ¡Y la recarga engorda la bolsa de premios! 💰
 
 *PUNTOS POR PARTIDO:*
-▪️ Grupos: ganador 3 / dif. goles +2 / exacto 5
+▪️ Grupos: ganador 3 / dif. goles +2 / goles de cada equipo +1 / exacto 5
 ▪️ 16avos y 8vos: ganador 5 / exacto 8
 ▪️ Cuartos: ganador 7 / exacto 10
 ▪️ Semis y 3er puesto: ganador 10 / exacto 15
 ▪️ FINAL: ganador 15 / exacto 25 🔥
+
+🍀 *Puntería parcial en grupos:* ¿fallaste el resultado pero le atinaste a los goles de un equipo? ¡Igual sumas +1 por cada uno! (Quedó 1-1 y pusiste 2-1 → +1 punto). Aquí hasta la suerte paga, no necesitas saber de fútbol 😎
 
 *PREMIOS (inscripciones + recargas):* 💰
 🥇 1er puesto: 50%

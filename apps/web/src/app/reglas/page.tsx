@@ -120,6 +120,7 @@ export default function ReglasPage() {
                   <th className="p-3 text-left">Fase</th>
                   <th className="p-3 text-right">Ganador (o empate)</th>
                   <th className="p-3 text-right">Dif. de goles</th>
+                  <th className="p-3 text-right">Goles por equipo</th>
                   <th className="p-3 text-right">Marcador exacto</th>
                 </tr>
               </thead>
@@ -128,11 +129,13 @@ export default function ReglasPage() {
                   <td className="p-3">Fase de grupos</td>
                   <td className="p-3 text-right font-bold">3</td>
                   <td className="p-3 text-right font-bold">+2</td>
+                  <td className="p-3 text-right font-bold">+1 c/u</td>
                   <td className="p-3 text-right font-black text-accent">5</td>
                 </tr>
                 <tr className="border-t border-border bg-black/20">
                   <td className="p-3">Dieciseisavos y Octavos</td>
                   <td className="p-3 text-right font-bold">5</td>
+                  <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right font-black text-accent">8</td>
                 </tr>
@@ -140,17 +143,20 @@ export default function ReglasPage() {
                   <td className="p-3">Cuartos de final</td>
                   <td className="p-3 text-right font-bold">7</td>
                   <td className="p-3 text-right text-muted-foreground">—</td>
+                  <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right font-black text-accent">10</td>
                 </tr>
                 <tr className="border-t border-border bg-black/20">
                   <td className="p-3">Semifinales y 3er puesto</td>
                   <td className="p-3 text-right font-bold">10</td>
                   <td className="p-3 text-right text-muted-foreground">—</td>
+                  <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right font-black text-accent">15</td>
                 </tr>
                 <tr className="border-t border-border">
                   <td className="p-3 font-black">FINAL</td>
                   <td className="p-3 text-right font-black">15</td>
+                  <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right text-muted-foreground">—</td>
                   <td className="p-3 text-right font-black text-accent">25</td>
                 </tr>
@@ -159,9 +165,17 @@ export default function ReglasPage() {
           </div>
           <p className="text-muted-foreground border-l-4 border-accent pl-3">
             El marcador exacto <b className="text-foreground">incluye</b> los puntos de
-            ganador: ej. en grupos, si aciertas el marcador sumas 3 + 2 + 5 ={" "}
-            <b className="text-accent">10 puntos</b>. Las fases finales valen más: ¡la
+            ganador: ej. en grupos, si aciertas el marcador sumas 3 + 2 + 5 + 2 ={" "}
+            <b className="text-accent">12 puntos</b>. Las fases finales valen más: ¡la
             final puede darte hasta 40!
+          </p>
+          <p className="text-muted-foreground border-l-4 border-accent pl-3">
+            <b className="text-foreground">🍀 Puntería parcial (solo fase de grupos):</b>{" "}
+            ganas <b className="text-foreground">+1 punto por cada equipo</b> cuyo número
+            de goles aciertes, ¡aunque falles el resultado! Ej: el partido queda 1-1 y tú
+            pronosticaste 2-1 → sumas <b className="text-accent">1 punto</b> por los goles
+            del visitante. Aquí hasta la suerte cuenta: no necesitas saber de fútbol para
+            sumar. En las fases finales esta regla no aplica.
           </p>
         </div>
       </section>
