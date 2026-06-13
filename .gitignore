@@ -10,6 +10,7 @@ coverage/
 apps/web/.next/
 apps/web/out/
 apps/web/build
+*.tsbuildinfo
 
 # Cloudflare / Wrangler
 apps/api/.wrangler/
