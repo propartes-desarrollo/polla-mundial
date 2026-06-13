@@ -258,17 +258,19 @@ export default function UserPortal() {
             // cada 30 min), así que un partido ya iniciado puede seguir "SCHEDULED".
             const matchStarted = new Date(match.matchDate).getTime() <= Date.now()
             const editable = match.status === "SCHEDULED" && !matchStarted && !locked
+            // Si la hora ya pasó pero el sync aún no lo marcó IN_PLAY/FINISHED, lo
+            // tratamos como "En vivo" igualmente — la etiqueta no depende del sync.
+            const displayStatus: Match["status"] =
+              match.status === "SCHEDULED" && matchStarted ? "IN_PLAY" : match.status
             const v = inputs[match.id] ?? { home: "", away: "" }
             return (
               <div key={match.id} className="bg-card border border-border rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between bg-black/40 px-3 py-1.5 border-b border-border">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">{fmtDate(match.matchDate)}</span>
-                  {locked && match.status === "SCHEDULED" ? (
+                  {locked && !matchStarted ? (
                     <span className="text-[10px] font-black uppercase bg-accent text-accent-foreground px-2 py-0.5 rounded">⚡ Recarga</span>
-                  ) : match.status === "SCHEDULED" && matchStarted ? (
-                    <span className="text-[10px] font-black uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded">🔒 Bloqueado</span>
                   ) : (
-                    <StatusChip status={match.status} />
+                    <StatusChip status={displayStatus} />
                   )}
                 </div>
 
@@ -305,7 +307,7 @@ export default function UserPortal() {
                       className="w-full bg-primary text-primary-foreground py-2 rounded font-black uppercase text-sm hover:bg-primary/90 disabled:opacity-50">
                       {savingId === match.id ? "Guardando..." : "Guardar"}
                     </button>
-                  ) : locked && match.status === "SCHEDULED" ? (
+                  ) : locked && !matchStarted ? (
                     <div className="text-center text-xs border-t border-border pt-2 font-black uppercase text-accent">
                       ⚡ Requiere recarga
                     </div>
