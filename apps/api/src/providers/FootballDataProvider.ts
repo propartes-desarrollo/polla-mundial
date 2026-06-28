@@ -43,7 +43,15 @@ export class FootballDataProvider implements FootballProvider {
   async getMatches(): Promise<ApiMatch[]> {
     const data = await this.fetchFromApi(`/competitions/${this.competition}/matches?season=${this.season}`)
 
-    return (data.matches ?? []).map((m: any) => {
+    return (data.matches ?? [])
+      // Saltar cruces de eliminatoria aún SIN definir: football-data.org devuelve
+      // homeTeam/awayTeam en null (o con id null) hasta que se conoce la pareja.
+      // Sin esta guarda, `team_fd_${null}` produce el id huérfano "team_fd_null"
+      // que el INNER JOIN de /api/matches descarta en silencio (y un objeto de
+      // equipo totalmente null haría que `m.homeTeam.id` lance y aborte TODO el
+      // sync). Con la guarda, cada fase aparece apenas se definen sus equipos.
+      .filter((m: any) => m?.homeTeam?.id != null && m?.awayTeam?.id != null)
+      .map((m: any) => {
       let status: 'SCHEDULED' | 'IN_PLAY' | 'FINISHED' = 'SCHEDULED'
       if (['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'].includes(m.status)) status = 'IN_PLAY'
       if (['FINISHED', 'AWARDED'].includes(m.status)) status = 'FINISHED'

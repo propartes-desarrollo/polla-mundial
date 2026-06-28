@@ -127,22 +127,33 @@ function normName(s: string): string {
   return out.toLowerCase().trim().replace(/\s+/g, ' ')
 }
 
+// Ejecuta muchas sentencias D1 en lotes. Cada env.DB.batch() cuenta como UN
+// solo subrequest del Worker (y corre en una transacción), en vez de uno por
+// sentencia. Sin esto, un sync con ~48 equipos + ~104 partidos + miles de
+// predicciones supera el límite de Cloudflare ("Too many API requests by
+// single Worker invocation") y aborta antes de escribir las fases finales.
+async function runBatched(env: Bindings, statements: D1PreparedStatement[], chunkSize = 100) {
+  for (let i = 0; i < statements.length; i += chunkSize) {
+    await env.DB.batch(statements.slice(i, i + chunkSize))
+  }
+}
+
 // Pulls teams + matches from the football provider into D1, then recomputes scores.
 async function syncTournamentData(env: Bindings) {
   const provider = makeProvider(env)
 
   const teams = await provider.getTeams()
-  for (const t of teams) {
-    await env.DB.prepare(
+  await runBatched(env, teams.map((t) =>
+    env.DB.prepare(
       `INSERT INTO teams (id, name, group_name, flag_url) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, group_name = excluded.group_name, flag_url = excluded.flag_url`
-    ).bind(t.id, translateTeamName(t.name), t.group, t.flagUrl).run()
-  }
+    ).bind(t.id, translateTeamName(t.name), t.group, t.flagUrl)
+  ))
 
   const matches = await provider.getMatches()
-  for (const m of matches) {
+  await runBatched(env, matches.map((m) => {
     const phaseId = mapRoundToPhaseId(m.phaseName)
-    await env.DB.prepare(
+    return env.DB.prepare(
       `INSERT INTO matches (id, api_match_id, phase_id, home_team_id, away_team_id, match_date, status, home_score, away_score)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
@@ -150,8 +161,8 @@ async function syncTournamentData(env: Bindings) {
          home_score = excluded.home_score,
          away_score = excluded.away_score,
          match_date = excluded.match_date`
-    ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore).run()
-  }
+    ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore)
+  }))
 
   // Auto-detección de campeón y subcampeón cuando la FINAL ya terminó.
   // Usa el campo `winner` del proveedor (cubre finales definidas por penales)
@@ -188,34 +199,44 @@ async function syncTournamentData(env: Bindings) {
 }
 
 // Recomputes prediction points for every finished match and rebuilds the rankings table.
+// Cada escritura va por lotes (runBatched) y se omiten los UPDATE redundantes,
+// para no agotar el límite de subrequests del Worker en torneos avanzados.
 async function recalculateScores(env: Bindings): Promise<number> {
-  const { results: finished } = await env.DB.prepare(
-    `SELECT id, phase_id, home_score, away_score FROM matches
-     WHERE status = 'FINISHED' AND home_score IS NOT NULL AND away_score IS NOT NULL`
-  ).all<{ id: string; phase_id: string; home_score: number; away_score: number }>()
+  // Una sola lectura trae TODAS las predicciones de partidos terminados junto
+  // con el resultado del partido (antes: un SELECT por cada partido terminado).
+  const { results: rows } = await env.DB.prepare(
+    `SELECT p.id, p.user_id, p.predicted_home, p.predicted_away,
+            p.points AS current_points, p.locked,
+            m.phase_id, m.home_score, m.away_score
+     FROM predictions p
+     JOIN matches m ON m.id = p.match_id
+     WHERE m.status = 'FINISHED' AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL`
+  ).all<{
+    id: string; user_id: string; predicted_home: number; predicted_away: number
+    current_points: number | null; locked: number; phase_id: string
+    home_score: number; away_score: number
+  }>()
 
   const stats = new Map<string, { points: number; exact: number; winners: number }>()
+  const writes: D1PreparedStatement[] = []
 
-  for (const match of finished) {
-    const { results: preds } = await env.DB.prepare(
-      `SELECT id, user_id, predicted_home, predicted_away FROM predictions WHERE match_id = ?`
-    ).bind(match.id).all<{ id: string; user_id: string; predicted_home: number; predicted_away: number }>()
-
-    for (const p of preds) {
-      const b = calculatePoints(
-        { homeScore: p.predicted_home, awayScore: p.predicted_away },
-        { homeScore: match.home_score, awayScore: match.away_score },
-        match.phase_id as PhaseType
-      )
-      await env.DB.prepare(`UPDATE predictions SET points = ?, locked = 1 WHERE id = ?`)
-        .bind(b.total, p.id).run()
-
-      const s = stats.get(p.user_id) ?? { points: 0, exact: 0, winners: 0 }
-      s.points += b.total
-      if (b.exactScore > 0) s.exact += 1
-      if (b.correctWinner > 0) s.winners += 1
-      stats.set(p.user_id, s)
+  for (const r of rows) {
+    const b = calculatePoints(
+      { homeScore: r.predicted_home, awayScore: r.predicted_away },
+      { homeScore: r.home_score, awayScore: r.away_score },
+      r.phase_id as PhaseType
+    )
+    // Solo escribir si algo cambió: evita miles de UPDATE idénticos en cada sync.
+    if (r.current_points !== b.total || !r.locked) {
+      writes.push(env.DB.prepare(`UPDATE predictions SET points = ?, locked = 1 WHERE id = ?`)
+        .bind(b.total, r.id))
     }
+
+    const s = stats.get(r.user_id) ?? { points: 0, exact: 0, winners: 0 }
+    s.points += b.total
+    if (b.exactScore > 0) s.exact += 1
+    if (b.correctWinner > 0) s.winners += 1
+    stats.set(r.user_id, s)
   }
 
   // Puntos por pronósticos especiales (solo cuando hay resultados oficiales).
@@ -240,25 +261,27 @@ async function recalculateScores(env: Bindings): Promise<number> {
   }
 
   for (const [userId, s] of stats) {
-    await env.DB.prepare(
+    writes.push(env.DB.prepare(
       `INSERT INTO rankings (id, user_id, total_points, exact_scores, correct_winners, position)
        VALUES (?, ?, ?, ?, ?, 0)
        ON CONFLICT(user_id) DO UPDATE SET
          total_points = excluded.total_points,
          exact_scores = excluded.exact_scores,
          correct_winners = excluded.correct_winners`
-    ).bind(`rank_${userId}`, userId, s.points, s.exact, s.winners).run()
+    ).bind(`rank_${userId}`, userId, s.points, s.exact, s.winners))
   }
+
+  // Las posiciones se calculan tras persistir los totales, así que primero se
+  // vacían las escrituras de predicciones + rankings.
+  await runBatched(env, writes)
 
   // Recompute leaderboard positions.
   const { results: order } = await env.DB.prepare(
     `SELECT user_id FROM rankings ORDER BY total_points DESC, exact_scores DESC`
   ).all<{ user_id: string }>()
-  let pos = 1
-  for (const row of order) {
-    await env.DB.prepare(`UPDATE rankings SET position = ? WHERE user_id = ?`).bind(pos, row.user_id).run()
-    pos++
-  }
+  await runBatched(env, order.map((row, i) =>
+    env.DB.prepare(`UPDATE rankings SET position = ? WHERE user_id = ?`).bind(i + 1, row.user_id)
+  ))
 
   return stats.size
 }
@@ -716,15 +739,13 @@ app.delete('/api/admin/participants/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM rankings WHERE user_id = ?').bind(id).run()
   await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
 
-  // Renumera las posiciones del ranking sin el eliminado.
+  // Renumera las posiciones del ranking sin el eliminado (por lotes).
   const { results: order } = await c.env.DB.prepare(
     'SELECT user_id FROM rankings ORDER BY total_points DESC, exact_scores DESC'
   ).all<{ user_id: string }>()
-  let pos = 1
-  for (const row of order) {
-    await c.env.DB.prepare('UPDATE rankings SET position = ? WHERE user_id = ?').bind(pos, row.user_id).run()
-    pos++
-  }
+  await runBatched(c.env, order.map((row, i) =>
+    c.env.DB.prepare('UPDATE rankings SET position = ? WHERE user_id = ?').bind(i + 1, row.user_id)
+  ))
 
   return c.json({ success: true })
 })

@@ -53,8 +53,13 @@ export class ApiSportsFootballProvider implements FootballProvider {
 
   async getMatches(): Promise<ApiMatch[]> {
     const data = await this.fetchFromApi(`/fixtures?league=${this.worldCupLeagueId}&season=${this.season}`)
-    
-    return data.map((item: any) => {
+
+    return data
+      // Saltar cruces de eliminatoria aún sin definir: la API devuelve los
+      // equipos en null hasta conocerse la pareja. Sin esta guarda se generan
+      // ids huérfanos ("team_null") que el INNER JOIN de /api/matches descarta.
+      .filter((item: any) => item?.teams?.home?.id != null && item?.teams?.away?.id != null)
+      .map((item: any) => {
       let status: 'SCHEDULED' | 'IN_PLAY' | 'FINISHED' = 'SCHEDULED'
       if (['1H', '2H', 'HT', 'ET', 'P'].includes(item.fixture.status.short)) status = 'IN_PLAY'
       if (['FT', 'AET', 'PEN'].includes(item.fixture.status.short)) status = 'FINISHED'
