@@ -242,14 +242,22 @@ export default function UserPortal() {
         <p className="text-muted-foreground">No hay partidos disponibles todavía.</p>
       )}
       {(() => {
-        const groups: { phase: string; items: Match[] }[] = []
+        // Orden del torneo; se muestra al revés para que las fases más avanzadas
+        // (las más recientes en aparecer / las pendientes) queden arriba y la
+        // fase de grupos, ya jugada, quede al final. Dentro de cada fase los
+        // partidos siguen en orden cronológico (match_date ASC del API).
+        const PHASE_ORDER = ["phase_groups", "phase_16", "phase_8", "phase_4", "phase_semi", "phase_3rd", "phase_final"]
+        const byPhase = new Map<string, { phaseId: string; phase: string; items: Match[] }>()
         for (const m of matches) {
-          const last = groups[groups.length - 1]
-          if (last && last.phase === m.phaseName) last.items.push(m)
-          else groups.push({ phase: m.phaseName, items: [m] })
+          const g = byPhase.get(m.phaseId)
+          if (g) g.items.push(m)
+          else byPhase.set(m.phaseId, { phaseId: m.phaseId, phase: m.phaseName, items: [m] })
         }
+        const groups = Array.from(byPhase.values()).sort(
+          (a, b) => PHASE_ORDER.indexOf(b.phaseId) - PHASE_ORDER.indexOf(a.phaseId)
+        )
         return groups.map((g) => (
-          <section key={g.phase} className="mb-10">
+          <section key={g.phaseId} className="mb-10">
             <h2 className="section-bar headline text-xl mb-4">{g.phase}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {g.items.map((match) => {
