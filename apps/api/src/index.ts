@@ -157,6 +157,9 @@ async function syncTournamentData(env: Bindings) {
       `INSERT INTO matches (id, api_match_id, phase_id, home_team_id, away_team_id, match_date, status, home_score, away_score)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
+         phase_id = excluded.phase_id,
+         home_team_id = excluded.home_team_id,
+         away_team_id = excluded.away_team_id,
          status = excluded.status,
          home_score = excluded.home_score,
          away_score = excluded.away_score,
