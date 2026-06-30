@@ -66,8 +66,13 @@ export class FootballDataProvider implements FootballProvider {
         awayTeamId: `team_fd_${m.awayTeam.id}`,
         date: m.utcDate,
         status,
-        homeScore: m.score?.fullTime?.home ?? null,
-        awayScore: m.score?.fullTime?.away ?? null,
+        // Marcador de los 90' REGLAMENTARIOS. En eliminatoria que se va a
+        // alargue o penales, football-data.org expone score.regularTime con el
+        // resultado de los 90 minutos (ej. 1-1 en un partido definido por
+        // penales). En fase de grupos regularTime no viene → se usa fullTime.
+        // (?? respeta el 0: un 0-0 de regularTime no cae a fullTime.)
+        homeScore: m.score?.regularTime?.home ?? m.score?.fullTime?.home ?? null,
+        awayScore: m.score?.regularTime?.away ?? m.score?.fullTime?.away ?? null,
         // stage examples: GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS,
         // SEMI_FINALS, THIRD_PLACE, FINAL
         phaseName: m.stage ?? 'GROUP_STAGE',
