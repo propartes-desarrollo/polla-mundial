@@ -699,6 +699,47 @@ app.get('/api/admin/participants', async (c) => {
   }
 })
 
+// Todos los pronósticos (partidos + especiales) de todos los participantes,
+// en un solo payload. Solo-admin (gateado por requireAdmin). El panel filtra
+// por partido o por participante en el cliente desde estos datos.
+app.get('/api/admin/predictions', async (c) => {
+  const participants = (await c.env.DB.prepare(
+    "SELECT id, name FROM users WHERE role = 'USER' ORDER BY name"
+  ).all()).results
+
+  const matches = (await c.env.DB.prepare(
+    `SELECT m.id, m.phase_id AS phaseId, ph.name AS phaseName, m.match_date AS matchDate,
+            m.status, m.home_score AS homeScore, m.away_score AS awayScore,
+            m.duration, m.winner,
+            m.penalty_home AS penaltyHome, m.penalty_away AS penaltyAway,
+            m.full_home AS fullHome, m.full_away AS fullAway,
+            ht.name AS homeName, at.name AS awayName
+     FROM matches m
+     JOIN teams ht ON ht.id = m.home_team_id
+     JOIN teams at ON at.id = m.away_team_id
+     JOIN phases ph ON ph.id = m.phase_id
+     ORDER BY m.match_date ASC`
+  ).all()).results
+
+  const predictions = (await c.env.DB.prepare(
+    `SELECT user_id AS userId, match_id AS matchId,
+            predicted_home AS predictedHome, predicted_away AS predictedAway,
+            points, locked
+     FROM predictions`
+  ).all()).results
+
+  const specials = (await c.env.DB.prepare(
+    `SELECT sp.user_id AS userId,
+            tc.name AS championName, tr.name AS runnerUpName,
+            sp.top_scorer_name AS topScorerName, sp.locked
+     FROM special_predictions sp
+     LEFT JOIN teams tc ON tc.id = sp.champion_team_id
+     LEFT JOIN teams tr ON tr.id = sp.runner_up_team_id`
+  ).all()).results
+
+  return c.json({ participants, matches, predictions, specials })
+})
+
 // Marca/desmarca el pago de un participante.
 app.put('/api/admin/participants/:id/payment', async (c) => {
   const id = c.req.param('id')
