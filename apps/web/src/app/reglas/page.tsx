@@ -113,6 +113,13 @@ export default function ReglasPage() {
           </ol>
 
           <h3 className="font-black uppercase text-sm pt-2">¿Cuántos puntos gano por partido?</h3>
+          <p className="bg-accent/10 border border-accent rounded p-3">
+            🌟 <b>Recordatorio:</b> además de los partidos, tus pronósticos especiales valen{" "}
+            🏆 Campeón <b className="text-accent">30</b> · 🥈 Subcampeón <b className="text-accent">15</b> ·{" "}
+            ⚽ Goleador <b className="text-accent">20</b> (los eliges en la sección 3). Se suman al
+            total cuando se registran los resultados oficiales.
+          </p>
+          <p className="font-bold text-xs uppercase text-muted-foreground">Componentes (se suman entre sí):</p>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -168,6 +175,54 @@ export default function ReglasPage() {
             ganador: ej. en grupos, si aciertas el marcador sumas 3 + 2 + 5 + 2 ={" "}
             <b className="text-accent">12 puntos</b>. Las fases finales valen más: ¡la
             final puede darte hasta 40!
+          </p>
+
+          <h3 className="font-black uppercase text-sm pt-2">Total que da cada acierto (porque se suman)</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-black/40 text-muted-foreground text-[11px] uppercase tracking-wider font-bold">
+                  <th className="p-3 text-left">Fase</th>
+                  <th className="p-3 text-right">Solo el ganador</th>
+                  <th className="p-3 text-right">Marcador exacto (total)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-border">
+                  <td className="p-3">Grupos (no empate)</td>
+                  <td className="p-3 text-right font-bold">3 <span className="text-muted-foreground font-normal">(+ puntería)</span></td>
+                  <td className="p-3 text-right font-black text-accent">12</td>
+                </tr>
+                <tr className="border-t border-border bg-black/20">
+                  <td className="p-3">Grupos (empate)</td>
+                  <td className="p-3 text-right font-bold">3 <span className="text-muted-foreground font-normal">(+ puntería)</span></td>
+                  <td className="p-3 text-right font-black text-accent">10</td>
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="p-3">Dieciseisavos y Octavos</td>
+                  <td className="p-3 text-right font-bold">5</td>
+                  <td className="p-3 text-right font-black text-accent">13</td>
+                </tr>
+                <tr className="border-t border-border bg-black/20">
+                  <td className="p-3">Cuartos de final</td>
+                  <td className="p-3 text-right font-bold">7</td>
+                  <td className="p-3 text-right font-black text-accent">17</td>
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="p-3">Semifinales y 3er puesto</td>
+                  <td className="p-3 text-right font-bold">10</td>
+                  <td className="p-3 text-right font-black text-accent">25</td>
+                </tr>
+                <tr className="border-t border-border bg-black/20">
+                  <td className="p-3 font-black">FINAL</td>
+                  <td className="p-3 text-right font-black">15</td>
+                  <td className="p-3 text-right font-black text-accent">40</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            En el empate no hay puntos por diferencia de goles, por eso da 10 y no 12.
           </p>
           <p className="text-muted-foreground border-l-4 border-accent pl-3">
             <b className="text-foreground">🍀 Puntería parcial (solo fase de grupos):</b>{" "}
