@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
 import NavAuth from "@/components/NavAuth";
+import AdminNavLinks from "@/components/AdminNavLinks";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -39,6 +40,7 @@ export default function RootLayout({
               <Link href="/reglas" className="px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-900 rounded">
                 Reglas
               </Link>
+              <AdminNavLinks />
               <NavAuth />
             </nav>
           </div>
