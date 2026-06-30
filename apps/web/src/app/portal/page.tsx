@@ -18,6 +18,12 @@ interface Match {
   awayName: string
   homeFlag: string | null
   awayFlag: string | null
+  duration: "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT" | null
+  winner: "HOME" | "AWAY" | null
+  penaltyHome: number | null
+  penaltyAway: number | null
+  fullHome: number | null
+  fullAway: number | null
   predictedHome: number | null
   predictedAway: number | null
   predictionPoints: number | null
@@ -307,6 +313,15 @@ export default function UserPortal() {
                       <span className="w-12 text-center text-2xl font-black">{match.awayScore ?? "-"}</span>
                     )}
                   </div>
+                  {/* Definición por penales o gol en tiempo extra. El marcador de
+                      arriba es siempre el de los 90' reglamentarios. */}
+                  {match.status === "FINISHED" && match.winner && (match.duration === "PENALTY_SHOOTOUT" || match.duration === "EXTRA_TIME") && (
+                    <div className="text-center text-[11px] font-bold text-accent border-t border-border pt-1.5">
+                      {match.duration === "PENALTY_SHOOTOUT"
+                        ? `Penales ${match.penaltyHome ?? "-"}-${match.penaltyAway ?? "-"} · Avanza ${match.winner === "HOME" ? match.homeName : match.awayName} por penales`
+                        : `Final ${match.fullHome ?? "-"}-${match.fullAway ?? "-"} · Avanza ${match.winner === "HOME" ? match.homeName : match.awayName} (gol en tiempo extra)`}
+                    </div>
+                  )}
                 </div>
 
                 <div className="px-3 pb-3">

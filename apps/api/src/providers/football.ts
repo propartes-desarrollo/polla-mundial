@@ -17,6 +17,14 @@ export interface ApiMatch {
   // Ganador explícito del partido (clave en finales definidas por penales,
   // donde el marcador puede quedar empatado).
   winner?: 'HOME' | 'AWAY' | null
+  // Cómo terminó el partido y los marcadores de desempate, para mostrar
+  // "Avanza X por penales" y el resultado de penales / gol en tiempo extra.
+  // homeScore/awayScore siguen siendo el marcador de los 90'.
+  duration?: 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT' | null
+  penaltyHome?: number | null
+  penaltyAway?: number | null
+  fullHome?: number | null // marcador final en cancha (incluye tiempo extra)
+  fullAway?: number | null
 }
 
 export interface FootballProvider {

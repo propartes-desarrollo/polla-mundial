@@ -154,8 +154,8 @@ async function syncTournamentData(env: Bindings) {
   await runBatched(env, matches.map((m) => {
     const phaseId = mapRoundToPhaseId(m.phaseName)
     return env.DB.prepare(
-      `INSERT INTO matches (id, api_match_id, phase_id, home_team_id, away_team_id, match_date, status, home_score, away_score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO matches (id, api_match_id, phase_id, home_team_id, away_team_id, match_date, status, home_score, away_score, duration, winner, penalty_home, penalty_away, full_home, full_away)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          phase_id = excluded.phase_id,
          home_team_id = excluded.home_team_id,
@@ -163,8 +163,15 @@ async function syncTournamentData(env: Bindings) {
          status = excluded.status,
          home_score = excluded.home_score,
          away_score = excluded.away_score,
-         match_date = excluded.match_date`
-    ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore)
+         match_date = excluded.match_date,
+         duration = excluded.duration,
+         winner = excluded.winner,
+         penalty_home = excluded.penalty_home,
+         penalty_away = excluded.penalty_away,
+         full_home = excluded.full_home,
+         full_away = excluded.full_away`
+    ).bind(m.id, m.id, phaseId, m.homeTeamId, m.awayTeamId, m.date, m.status, m.homeScore, m.awayScore,
+           m.duration ?? null, m.winner ?? null, m.penaltyHome ?? null, m.penaltyAway ?? null, m.fullHome ?? null, m.fullAway ?? null)
   }))
 
   // Auto-detección de campeón y subcampeón cuando la FINAL ya terminó.
@@ -458,6 +465,9 @@ app.get('/api/matches', async (c) => {
             m.phase_id AS phaseId, ph.name AS phaseName,
             ht.name AS homeName, ht.flag_url AS homeFlag,
             at.name AS awayName, at.flag_url AS awayFlag,
+            m.duration AS duration, m.winner AS winner,
+            m.penalty_home AS penaltyHome, m.penalty_away AS penaltyAway,
+            m.full_home AS fullHome, m.full_away AS fullAway,
             p.predicted_home AS predictedHome,
             p.predicted_away AS predictedAway,
             p.points AS predictionPoints

@@ -76,7 +76,13 @@ export class FootballDataProvider implements FootballProvider {
         // stage examples: GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS,
         // SEMI_FINALS, THIRD_PLACE, FINAL
         phaseName: m.stage ?? 'GROUP_STAGE',
-        winner
+        winner,
+        // Detalle de definición (para mostrar penales / gol en tiempo extra).
+        duration: m.score?.duration ?? null,
+        penaltyHome: m.score?.penalties?.home ?? null,
+        penaltyAway: m.score?.penalties?.away ?? null,
+        fullHome: m.score?.fullTime?.home ?? null,
+        fullAway: m.score?.fullTime?.away ?? null
       }
     })
   }
