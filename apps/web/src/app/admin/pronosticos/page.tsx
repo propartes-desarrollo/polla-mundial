@@ -17,10 +17,20 @@ interface PredMatch {
 interface PredRow { userId: string; matchId: string; predictedHome: number; predictedAway: number; points: number | null; locked: number }
 interface PredSpecial { userId: string; championName: string | null; runnerUpName: string | null; topScorerName: string | null }
 interface PredData { participants: { id: string; name: string }[]; matches: PredMatch[]; predictions: PredRow[]; specials: PredSpecial[] }
+interface RankRow { position: number; name: string; points: number; exactScores: number; correctWinners: number }
+interface PrizeWinner { name: string; position: number }
+interface Prize { label: string; amount: number; winners?: PrizeWinner[]; perWinner?: number | null }
+interface PrizeInfo { participants: number; paidCount: number; totalCollected: number; prizes: Prize[] }
+
+type Mode = "match" | "participant" | "goleador"
 
 const fmtDateShort = (iso: string) => {
   try { return new Date(iso).toLocaleString("es-CO", { day: "2-digit", month: "short" }) } catch { return iso }
 }
+
+// Misma normalización del backend (normName): minúsculas, sin tildes, espacios colapsados.
+const normName = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s+/g, " ")
 
 // Marcador oficial de un partido: 90' + nota de penales/tiempo extra.
 function actualLabel(m: PredMatch): string {
@@ -31,10 +41,50 @@ function actualLabel(m: PredMatch): string {
   return s
 }
 
+// --- CSV ---
+function csvEscape(v: unknown): string {
+  const s = v == null ? "" : String(v)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+function toCSV(rows: (string | number | null | undefined)[][]): string {
+  return rows.map((r) => r.map(csvEscape).join(",")).join("\r\n")
+}
+function downloadCSV(filename: string, csv: string) {
+  // BOM UTF-8 (﻿) para que Excel respete tildes y ñ.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// Agrupa las respuestas del goleador por nombre normalizado.
+function goleadorGroups(predData: PredData) {
+  const nameById = new Map(predData.participants.map((p) => [p.id, p.name]))
+  const groups = new Map<string, { variants: Set<string>; users: string[] }>()
+  for (const s of predData.specials) {
+    if (!s.topScorerName || !s.topScorerName.trim()) continue
+    const key = normName(s.topScorerName)
+    const g = groups.get(key) ?? { variants: new Set<string>(), users: [] }
+    g.variants.add(s.topScorerName.trim())
+    g.users.push(nameById.get(s.userId) ?? s.userId)
+    groups.set(key, g)
+  }
+  return [...groups.entries()]
+    .map(([key, g]) => ({ key, variants: [...g.variants], users: g.users.sort() }))
+    .sort((a, b) => b.users.length - a.users.length)
+}
+
 export default function AdminPredictionsPage() {
   const router = useRouter()
   const [predData, setPredData] = useState<PredData | null>(null)
-  const [predMode, setPredMode] = useState<"match" | "participant">("match")
+  const [ranking, setRanking] = useState<RankRow[]>([])
+  const [prizeInfo, setPrizeInfo] = useState<PrizeInfo | null>(null)
+  const [mode, setMode] = useState<Mode>("match")
   const [predMatchId, setPredMatchId] = useState("")
   const [predUserId, setPredUserId] = useState("")
   const [error, setError] = useState("")
@@ -43,9 +93,15 @@ export default function AdminPredictionsPage() {
   useEffect(() => {
     const user = getUser()
     if (!user || user.role !== "ADMIN") { router.replace("/login"); return }
-    apiFetch<PredData>("/api/admin/predictions")
-      .then((d) => {
+    Promise.all([
+      apiFetch<PredData>("/api/admin/predictions"),
+      apiFetch<RankRow[]>("/api/ranking").catch(() => [] as RankRow[]),
+      apiFetch<PrizeInfo | null>("/api/prizes").catch(() => null),
+    ])
+      .then(([d, r, pz]) => {
         setPredData(d)
+        setRanking(r)
+        setPrizeInfo(pz)
         if (d.matches.length) setPredMatchId(d.matches[0].id)
         if (d.participants.length) setPredUserId(d.participants[0].id)
       })
@@ -53,14 +109,51 @@ export default function AdminPredictionsPage() {
       .finally(() => setLoading(false))
   }, [router])
 
+  function exportStandings() {
+    const rows: (string | number)[][] = [["Puesto", "Participante", "Puntos", "Marcadores exactos", "Ganadores acertados"]]
+    ranking.forEach((r) => rows.push([r.position, r.name, r.points, r.exactScores, r.correctWinners]))
+    downloadCSV("posiciones-finales.csv", toCSV(rows))
+  }
+  function exportSpecials() {
+    if (!predData) return
+    const spById = new Map(predData.specials.map((s) => [s.userId, s]))
+    const rows: (string | null)[][] = [["Participante", "Campeon", "Subcampeon", "Goleador"]]
+    predData.participants.forEach((p) => {
+      const s = spById.get(p.id)
+      rows.push([p.name, s?.championName ?? "", s?.runnerUpName ?? "", s?.topScorerName ?? ""])
+    })
+    downloadCSV("pronosticos-especiales.csv", toCSV(rows))
+  }
+  function exportPrizes() {
+    if (!prizeInfo) return
+    const rows: (string | number)[][] = [["Premio", "Monto (COP)", "Gana(n)", "Por ganador (COP)"]]
+    prizeInfo.prizes.forEach((pz) => {
+      const winners = (pz.winners ?? []).map((w) => `${w.name} (${w.position}o)`).join(" / ")
+      rows.push([pz.label, pz.amount, winners, pz.perWinner ?? ""])
+    })
+    downloadCSV("premios.csv", toCSV(rows))
+  }
+  function exportGoleador() {
+    if (!predData) return
+    const rows: (string | number)[][] = [["Respuesta (normalizada)", "Variantes escritas", "Cuantos", "Participantes"]]
+    goleadorGroups(predData).forEach((g) => rows.push([g.key, g.variants.join(" / "), g.users.length, g.users.join(" / ")]))
+    downloadCSV("goleador-respuestas.csv", toCSV(rows))
+  }
+
   const predIndex = new Map<string, PredRow>()
   predData?.predictions.forEach((p) => predIndex.set(`${p.userId}|${p.matchId}`, p))
 
-  const toggleBtn = (mode: "match" | "participant", label: string) => (
-    <button onClick={() => setPredMode(mode)}
-      className={predMode === mode
+  const toggleBtn = (m: Mode, label: string) => (
+    <button onClick={() => setMode(m)}
+      className={mode === m
         ? "text-xs font-black uppercase px-3 py-1.5 rounded bg-primary text-primary-foreground"
         : "text-xs font-black uppercase px-3 py-1.5 rounded text-muted-foreground hover:text-foreground"}>
+      {label}
+    </button>
+  )
+  const exportBtn = (label: string, fn: () => void) => (
+    <button onClick={fn}
+      className="text-xs font-black uppercase px-3 py-1.5 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80">
       {label}
     </button>
   )
@@ -80,12 +173,22 @@ export default function AdminPredictionsPage() {
         <p className="text-muted-foreground">No se pudieron cargar los pronósticos.</p>
       ) : (
         <>
-          <div className="flex gap-1 bg-card border border-border rounded-lg p-1 w-fit mb-4">
-            {toggleBtn("match", "Por partido")}
-            {toggleBtn("participant", "Por participante")}
+          {/* Exportar a hoja de cálculo (CSV, se abre en Excel / Google Sheets) */}
+          <div className="bg-card border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black uppercase text-muted-foreground mr-1">Exportar CSV:</span>
+            {exportBtn("Posiciones", exportStandings)}
+            {exportBtn("Especiales", exportSpecials)}
+            {exportBtn("Premios", exportPrizes)}
+            {exportBtn("Goleador", exportGoleador)}
           </div>
 
-          {predMode === "match" ? (() => {
+          <div className="flex flex-wrap gap-1 bg-card border border-border rounded-lg p-1 w-fit mb-4">
+            {toggleBtn("match", "Por partido")}
+            {toggleBtn("participant", "Por participante")}
+            {toggleBtn("goleador", "Goleador")}
+          </div>
+
+          {mode === "match" ? (() => {
             const data = predData!
             const m = data.matches.find((x) => x.id === predMatchId)
             return (
@@ -133,7 +236,7 @@ export default function AdminPredictionsPage() {
                 </div>
               </div>
             )
-          })() : (() => {
+          })() : mode === "participant" ? (() => {
             const data = predData!
             const sp = data.specials.find((x) => x.userId === predUserId)
             return (
@@ -176,6 +279,47 @@ export default function AdminPredictionsPage() {
                           </tr>
                         )
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })() : (() => {
+            const data = predData!
+            const groups = goleadorGroups(data)
+            return (
+              <div className="bg-card border border-border rounded-lg overflow-hidden">
+                <p className="p-4 border-b border-border text-xs text-muted-foreground">
+                  Todas las respuestas del goleador, agrupadas ignorando tildes y mayúsculas. Los
+                  errores de escritura (ej. <b className="text-foreground">Mpape</b>, <b className="text-foreground">Kiliam</b>)
+                  quedan como grupos aparte para que decidas a mano quiénes acertaron. La app solo
+                  suma automáticamente a quienes coincidan exactamente (ya normalizado) con el goleador oficial.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-black/40 text-muted-foreground text-[11px] uppercase tracking-wider font-bold">
+                        <th className="p-3 text-left">Respuesta</th>
+                        <th className="p-3 text-center w-20">Cuántos</th>
+                        <th className="p-3 text-left">Participantes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g, i) => (
+                        <tr key={g.key} className={i % 2 ? "border-t border-border bg-black/20" : "border-t border-border"}>
+                          <td className="p-3">
+                            <span className="font-black">{g.key}</span>
+                            {g.variants.length > 1 && (
+                              <span className="block text-[11px] text-muted-foreground">Escrito: {g.variants.join(" · ")}</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center font-black text-accent">{g.users.length}</td>
+                          <td className="p-3 text-muted-foreground">{g.users.join(", ")}</td>
+                        </tr>
+                      ))}
+                      {groups.length === 0 && (
+                        <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">Nadie ha registrado goleador todavía.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
