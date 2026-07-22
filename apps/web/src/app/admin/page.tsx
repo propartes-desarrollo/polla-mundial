@@ -17,6 +17,7 @@ interface Officials {
   topScorerName: string | null
   championName: string | null
   runnerUpName: string | null
+  topScorerAliases: string | null
 }
 const STATUS_LABEL: Record<string, string> = {
   OPEN: "EN JUEGO",
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   const [offChampion, setOffChampion] = useState("")
   const [offRunnerUp, setOffRunnerUp] = useState("")
   const [offScorer, setOffScorer] = useState("")
+  const [offScorerAliases, setOffScorerAliases] = useState("")
   const [feeInput, setFeeInput] = useState("")
   const [rechargeFeeInput, setRechargeFeeInput] = useState("")
   const [error, setError] = useState("")
@@ -59,6 +61,7 @@ export default function AdminDashboard() {
     setOffChampion(off?.championTeamId ?? "")
     setOffRunnerUp(off?.runnerUpTeamId ?? "")
     setOffScorer(off?.topScorerName ?? "")
+    setOffScorerAliases(off?.topScorerAliases ?? "")
     setFeeInput(String(s.fee))
     setRechargeFeeInput(String(s.rechargeFee ?? 0))
   }
@@ -107,6 +110,7 @@ export default function AdminDashboard() {
           championTeamId: offChampion,
           runnerUpTeamId: offRunnerUp,
           topScorerName: offScorer,
+          topScorerAliases: offScorerAliases,
         }),
       })
       alert(`Resultados oficiales guardados. Ranking recalculado (${r.rankedUsers} participantes con puntos).`)
@@ -306,6 +310,19 @@ export default function AdminDashboard() {
               <input value={offScorer} onChange={(e) => setOffScorer(e.target.value)} placeholder="Nombre del jugador"
                 className="w-full bg-input border border-border rounded px-3 py-2 text-sm" />
             </div>
+          </div>
+          <div className="mt-4">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block mb-1">
+              ⚽ Grafías aceptadas del goleador (separadas por coma)
+            </label>
+            <textarea value={offScorerAliases} onChange={(e) => setOffScorerAliases(e.target.value)}
+              placeholder="ej: Embape, Mpape, Kilian Mbappe"
+              rows={2}
+              className="w-full bg-input border border-border rounded px-3 py-2 text-sm" />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Variantes o errores de escritura que también cuentan como acierto del goleador (para los
+              20 puntos y el premio). No importan tildes ni mayúsculas: registrar el oficial &quot;Mbappé&quot; ya cubre &quot;mbappe&quot;/&quot;MBAPPE&quot;.
+            </p>
           </div>
           <div className="mt-4 text-right">
             <button onClick={saveOfficials} disabled={busy === "officials"}

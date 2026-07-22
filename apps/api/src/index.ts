@@ -97,18 +97,41 @@ interface Officials {
   championTeamId: string | null
   runnerUpTeamId: string | null
   topScorerName: string | null
+  // Grafías adicionales que cuentan como acierto del goleador (variantes/typos
+  // del mismo jugador, ej: "Embape", "Mpape", "Kilian Mbappe"). Guardadas como
+  // texto separado por comas/saltos de línea en settings.official_top_scorer_aliases.
+  topScorerAliasesRaw: string
+}
+
+// Divide el texto de alias (comas o saltos de línea) en una lista limpia.
+function parseAliases(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  return raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+}
+
+// Conjunto de nombres normalizados que cuentan como acierto del goleador:
+// el oficial + todas sus grafías aceptadas.
+function acceptedScorerNames(o: Officials): Set<string> {
+  const set = new Set<string>()
+  if (o.topScorerName) set.add(normName(o.topScorerName))
+  for (const a of parseAliases(o.topScorerAliasesRaw)) {
+    const n = normName(a)
+    if (n) set.add(n)
+  }
+  return set
 }
 
 async function getOfficials(env: Bindings): Promise<Officials> {
-  const out: Officials = { championTeamId: null, runnerUpTeamId: null, topScorerName: null }
+  const out: Officials = { championTeamId: null, runnerUpTeamId: null, topScorerName: null, topScorerAliasesRaw: '' }
   try {
     const { results } = await env.DB.prepare(
-      "SELECT key, value FROM settings WHERE key IN ('official_champion','official_runner_up','official_top_scorer')"
+      "SELECT key, value FROM settings WHERE key IN ('official_champion','official_runner_up','official_top_scorer','official_top_scorer_aliases')"
     ).all<{ key: string; value: string }>()
     for (const r of results) {
       if (r.key === 'official_champion') out.championTeamId = r.value || null
       if (r.key === 'official_runner_up') out.runnerUpTeamId = r.value || null
       if (r.key === 'official_top_scorer') out.topScorerName = r.value || null
+      if (r.key === 'official_top_scorer_aliases') out.topScorerAliasesRaw = r.value || ''
     }
   } catch {
     // tabla settings aún no existe
@@ -252,6 +275,7 @@ async function recalculateScores(env: Bindings): Promise<number> {
   // Puntos por pronósticos especiales (solo cuando hay resultados oficiales).
   // Campeón 30 · Subcampeón 15 · Goleador 20 (ver SPECIAL_POINTS en scoring.ts).
   const officials = await getOfficials(env)
+  const scorerSet = acceptedScorerNames(officials) // oficial + grafías aceptadas
   if (officials.championTeamId || officials.runnerUpTeamId || officials.topScorerName) {
     const { results: specials } = await env.DB.prepare(
       `SELECT user_id, champion_team_id, runner_up_team_id, top_scorer_name FROM special_predictions`
@@ -261,7 +285,7 @@ async function recalculateScores(env: Bindings): Promise<number> {
       let bonus = 0
       if (officials.championTeamId && sp.champion_team_id === officials.championTeamId) bonus += 30
       if (officials.runnerUpTeamId && sp.runner_up_team_id === officials.runnerUpTeamId) bonus += 15
-      if (officials.topScorerName && sp.top_scorer_name && normName(sp.top_scorer_name) === normName(officials.topScorerName)) bonus += 20
+      if (officials.topScorerName && sp.top_scorer_name && scorerSet.has(normName(sp.top_scorer_name))) bonus += 20
       if (bonus > 0) {
         const s = stats.get(sp.user_id) ?? { points: 0, exact: 0, winners: 0 }
         s.points += bonus
@@ -628,8 +652,8 @@ app.get('/api/prizes', async (c) => {
         .sort(byRanking).map(toWinner)
     }
     if (officials.topScorerName) {
-      const target = normName(officials.topScorerName)
-      scorerHits = specials.filter((s) => s.scorer && normName(s.scorer) === target)
+      const accepted = acceptedScorerNames(officials) // oficial + grafías aceptadas
+      scorerHits = specials.filter((s) => s.scorer && accepted.has(normName(s.scorer)))
         .sort(byRanking).map(toWinner)
     }
   }
@@ -817,13 +841,13 @@ app.get('/api/admin/officials', async (c) => {
     const t = await c.env.DB.prepare('SELECT name FROM teams WHERE id = ?').bind(o.runnerUpTeamId).first<{ name: string }>()
     runnerUpName = t?.name ?? null
   }
-  return c.json({ ...o, championName, runnerUpName })
+  return c.json({ ...o, championName, runnerUpName, topScorerAliases: o.topScorerAliasesRaw })
 })
 
 // Registra/corrige los resultados oficiales y recalcula el ranking al instante.
 app.put('/api/admin/officials', async (c) => {
-  const { championTeamId, runnerUpTeamId, topScorerName } =
-    await c.req.json<{ championTeamId?: string; runnerUpTeamId?: string; topScorerName?: string }>()
+  const { championTeamId, runnerUpTeamId, topScorerName, topScorerAliases } =
+    await c.req.json<{ championTeamId?: string; runnerUpTeamId?: string; topScorerName?: string; topScorerAliases?: string }>()
 
   const upsert = (key: string, value: string) =>
     c.env.DB.prepare(
@@ -834,6 +858,7 @@ app.put('/api/admin/officials', async (c) => {
     if (championTeamId !== undefined) await upsert('official_champion', championTeamId)
     if (runnerUpTeamId !== undefined) await upsert('official_runner_up', runnerUpTeamId)
     if (topScorerName !== undefined) await upsert('official_top_scorer', topScorerName)
+    if (topScorerAliases !== undefined) await upsert('official_top_scorer_aliases', topScorerAliases)
   } catch {
     return c.json({ error: 'Falta la tabla settings: corre la migración 0003 en la Console de D1' }, 500)
   }
