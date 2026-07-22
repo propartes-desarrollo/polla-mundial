@@ -139,6 +139,29 @@ export default function AdminPredictionsPage() {
     goleadorGroups(predData).forEach((g) => rows.push([g.key, g.variants.join(" / "), g.users.length, g.users.join(" / ")]))
     downloadCSV("goleador-respuestas.csv", toCSV(rows))
   }
+  // Todos los pronósticos de partidos con su puntaje: una fila por pronóstico.
+  function exportAllPredictions() {
+    if (!predData) return
+    const nameById = new Map(predData.participants.map((p) => [p.id, p.name]))
+    const matchById = new Map(predData.matches.map((m) => [m.id, m]))
+    const rows: (string | number)[][] = [["Participante", "Fase", "Partido", "Fecha", "Pronostico", "Resultado (90 min)", "Puntos"]]
+    predData.predictions
+      .map((pr) => ({ pr, m: matchById.get(pr.matchId), name: nameById.get(pr.userId) ?? pr.userId }))
+      .filter((x): x is { pr: PredRow; m: PredMatch; name: string } => !!x.m)
+      .sort((a, b) => a.name.localeCompare(b.name) || new Date(a.m.matchDate).getTime() - new Date(b.m.matchDate).getTime())
+      .forEach(({ pr, m, name }) => {
+        rows.push([
+          name,
+          m.phaseName,
+          `${m.homeName} vs ${m.awayName}`,
+          fmtDateShort(m.matchDate),
+          `${pr.predictedHome}-${pr.predictedAway}`,
+          actualLabel(m),
+          m.status === "FINISHED" ? (pr.points ?? 0) : "",
+        ])
+      })
+    downloadCSV("pronosticos-detallados.csv", toCSV(rows))
+  }
 
   const predIndex = new Map<string, PredRow>()
   predData?.predictions.forEach((p) => predIndex.set(`${p.userId}|${p.matchId}`, p))
@@ -177,6 +200,7 @@ export default function AdminPredictionsPage() {
           <div className="bg-card border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-black uppercase text-muted-foreground mr-1">Exportar CSV:</span>
             {exportBtn("Posiciones", exportStandings)}
+            {exportBtn("Pronósticos (todos)", exportAllPredictions)}
             {exportBtn("Especiales", exportSpecials)}
             {exportBtn("Premios", exportPrizes)}
             {exportBtn("Goleador", exportGoleador)}
